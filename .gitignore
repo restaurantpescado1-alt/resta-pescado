@@ -1,0 +1,42 @@
+# Secrets and local credentials. Never commit.
+.dev.vars
+.env
+.env.local
+.env.*.local
+
+# Next.js
+/.next/
+/out/
+next-env.d.ts
+
+# OpenNext
+/.open-next/
+
+# Cloudflare / wrangler
+/.wrangler/
+/worker-configuration.d.ts
+/cloudflare-env.d.ts
+
+# Drizzle
+/drizzle/*.sqlite
+/drizzle/*.sqlite-journal
+
+# Testing
+/coverage/
+/playwright-report/
+/test-results/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
+/.vitest-cache/
+
+# Node
+/node_modules/
+*.tsbuildinfo
+
+# Editors and OS
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db

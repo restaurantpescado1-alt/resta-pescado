@@ -1,0 +1,30 @@
+@import "tailwindcss";
+
+:root {
+  --rp-ink: #0b1f2a;
+  --rp-ink-soft: #33505d;
+  --rp-sea: #0e6b7d;
+  --rp-sea-deep: #08414e;
+  --rp-sand: #f6f1e7;
+  --rp-line: #d9cfc0;
+  --rp-danger: #a32020;
+  --rp-ok: #1c6b3f;
+}
+
+@theme inline {
+  --color-ink: var(--rp-ink);
+  --color-ink-soft: var(--rp-ink-soft);
+  --color-sea: var(--rp-sea);
+  --color-sea-deep: var(--rp-sea-deep);
+  --color-sand: var(--rp-sand);
+  --color-line: var(--rp-line);
+  --color-danger: var(--rp-danger);
+  --color-ok: var(--rp-ok);
+}
+
+body {
+  background-color: var(--rp-sand);
+  color: var(--rp-ink);
+  font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
