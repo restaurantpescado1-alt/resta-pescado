@@ -162,6 +162,22 @@ export const siteSettings = sqliteTable(
     familyNoteFr: text("family_note_fr"),
     heroTitleFr: text("hero_title_fr"),
     heroSubtitleFr: text("hero_subtitle_fr"),
+
+    // Delivery, as confirmed by the owner. Delivery is arranged and paid for by
+    // phone rather than online, which is why these are free-text owner statements
+    // rather than a structured delivery table with zones and fees: nothing is
+    // computed from them in Phase 1, and inventing a zone list or a fee schedule
+    // would be inventing facts. See docs/CONTENT_POLICY.md.
+    deliveryEnabled: integer("delivery_enabled", { mode: "boolean" }).notNull().default(true),
+    /** Where delivery reaches, in the owner's own words. */
+    deliveryZonesTextFr: text("delivery_zones_text_fr"),
+    /** Whether delivery costs anything, stated by the owner. */
+    deliveryFeeTextFr: text("delivery_fee_text_fr"),
+    deliveryMinimumOrderTextFr: text("delivery_minimum_order_text_fr"),
+    deliveryHoursFr: text("delivery_hours_fr"),
+    /** How to order, including the phone number or ordering channel. */
+    pickupTextFr: text("pickup_text_fr"),
+
     ...timestamps,
   },
   (table) => [check("site_settings_singleton", sql`${table.id} = 'singleton'`)],

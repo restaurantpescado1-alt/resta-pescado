@@ -11,7 +11,9 @@ import {
   getMenuItem,
   recordAuditLog,
   updateMenuItemImageKey,
+  updateMenuItemImageKeyWithAudit,
   updateMenuItemPrice,
+  updateMenuItemPriceWithAudit,
   findAuditLogs,
   listAuditLogs,
 } from "../../src/db/repositories/menu";
@@ -210,6 +212,189 @@ describe("menu repository", () => {
   });
 });
 
+describe("atomic menu writes", () => {
+  /**
+   * Both failure directions are covered, because they are different bugs.
+   *
+   * A bad price is the update failing, which proves the audit insert does not
+   * survive on its own. A bad actor is the audit failing, which proves the
+   * dish does not move without its trail. A batch that only ever rolls back in
+   * one of those directions is still broken.
+   */
+  const badPrice = { menuItemId: "item-1", priceDa: 0 };
+
+  function priceAudit(actorId: string) {
+    return {
+      actorId,
+      action: "menu_item.price_updated",
+      entityType: "menu_item",
+      entityId: "item-1",
+      metadata: { from: 900, to: 1000 },
+    };
+  }
+
+  it("writes the price and its audit row together", async () => {
+    const { db, native } = createDatabase();
+    try {
+      seedFixture(db);
+
+      await updateMenuItemPriceWithAudit(db, {
+        menuItemId: "item-1",
+        priceDa: 1000,
+        audit: priceAudit("user-1"),
+      });
+
+      const item = await getMenuItem(db, "item-1");
+      expect(item?.priceDa).toBe(1000);
+      const audit = await findAuditLogs(db, "menu_item", "item-1");
+      expect(audit).toHaveLength(1);
+      expect(audit[0]!.action).toBe("menu_item.price_updated");
+      expect(JSON.parse(audit[0]!.metadata)).toEqual({ from: 900, to: 1000 });
+    } finally {
+      native.close();
+    }
+  });
+
+  it("rolls the audit row back when the price violates its constraint", async () => {
+    const { db, native } = createDatabase();
+    try {
+      seedFixture(db);
+
+      await expect(
+        updateMenuItemPriceWithAudit(db, { ...badPrice, audit: priceAudit("user-1") }),
+      ).rejects.toThrow();
+
+      // The audit insert would have succeeded on its own, so finding a row here
+      // means the batch is not atomic.
+      expect(await findAuditLogs(db, "menu_item", "item-1")).toHaveLength(0);
+      const item = await getMenuItem(db, "item-1");
+      expect(item?.priceDa).toBe(900);
+    } finally {
+      native.close();
+    }
+  });
+
+  it("rolls the price back when the audit insert violates its foreign key", async () => {
+    const { db, native } = createDatabase();
+    try {
+      seedFixture(db);
+
+      // `user-ghost` is not in the `user` table and foreign keys are on, so the
+      // audit insert fails while the update would otherwise have succeeded.
+      await expect(
+        updateMenuItemPriceWithAudit(db, {
+          menuItemId: "item-1",
+          priceDa: 1000,
+          audit: priceAudit("user-ghost"),
+        }),
+      ).rejects.toThrow();
+
+      // The dangerous half: a price the owner never agreed to, with no trail.
+      const item = await getMenuItem(db, "item-1");
+      expect(item?.priceDa).toBe(900);
+      expect(await findAuditLogs(db, "menu_item", "item-1")).toHaveLength(0);
+    } finally {
+      native.close();
+    }
+  });
+
+  it("rejects rather than leaving a trail for a dish that does not exist", async () => {
+    const { db, native } = createDatabase();
+    try {
+      seedFixture(db);
+
+      await expect(
+        updateMenuItemPriceWithAudit(db, {
+          menuItemId: "item-missing",
+          priceDa: 1000,
+          audit: { ...priceAudit("user-1"), entityId: "item-missing" },
+        }),
+      ).rejects.toThrow();
+
+      expect(await findAuditLogs(db, "menu_item", "item-missing")).toHaveLength(0);
+    } finally {
+      native.close();
+    }
+  });
+
+  it("writes the image key and its audit row together", async () => {
+    const { db, native } = createDatabase();
+    try {
+      seedFixture(db);
+
+      await updateMenuItemImageKeyWithAudit(db, {
+        menuItemId: "item-1",
+        imageKey: "menu/2026/new.png",
+        audit: {
+          actorId: "user-1",
+          action: "menu_item.image_replaced",
+          entityType: "menu_item",
+          entityId: "item-1",
+          metadata: { from: null, to: "menu/2026/new.png" },
+        },
+      });
+
+      const item = await getMenuItem(db, "item-1");
+      expect(item?.imageKey).toBe("menu/2026/new.png");
+      expect(await findAuditLogs(db, "menu_item", "item-1")).toHaveLength(1);
+    } finally {
+      native.close();
+    }
+  });
+
+  it("leaves the previous image key in place when the audit insert fails", async () => {
+    const { db, native } = createDatabase();
+    try {
+      seedFixture(db);
+      await updateMenuItemImageKey(db, "item-1", "menu/2026/original.png");
+
+      await expect(
+        updateMenuItemImageKeyWithAudit(db, {
+          menuItemId: "item-1",
+          imageKey: "menu/2026/replacement.png",
+          audit: {
+            actorId: "user-ghost",
+            action: "menu_item.image_replaced",
+            entityType: "menu_item",
+            entityId: "item-1",
+            metadata: {},
+          },
+        }),
+      ).rejects.toThrow();
+
+      // This is the assertion that justifies the R2 compensation in the action:
+      // the database still points at the original object, so that object must not
+      // have been deleted.
+      const item = await getMenuItem(db, "item-1");
+      expect(item?.imageKey).toBe("menu/2026/original.png");
+      expect(await findAuditLogs(db, "menu_item", "item-1")).toHaveLength(0);
+    } finally {
+      native.close();
+    }
+  });
+});
+
+/**
+ * Reads a rate-limit counter straight out of SQLite.
+ *
+ * Deliberately not going through Drizzle: the point of these assertions is what
+ * actually landed on disk, and the key format is an implementation detail of
+ * `consumeRateLimit` that a test should not have to reimplement to check it.
+ */
+function readCounter(
+  native: Database.Database,
+  action: string,
+  identity: string,
+): { count: number; window_start: number } {
+  const row = native
+    .prepare("SELECT count, window_start FROM rate_limit_counters WHERE key = ?")
+    .get(`${action}:${identity}`) as { count: number; window_start: number } | undefined;
+  if (!row) {
+    throw new Error(`No rate limit counter stored for ${action}:${identity}`);
+  }
+  return row;
+}
+
 function eqId(id: string) {
   return eq(schema.menuItems.id, id);
 }
@@ -356,6 +541,89 @@ describe("rate limiter", () => {
       // A different action, and a different identity, are both unaffected.
       expect((await consumeRateLimit(db, "user-1", imageRule, now)).allowed).toBe(true);
       expect((await consumeRateLimit(db, "user-2", priceRule, now)).allowed).toBe(true);
+    } finally {
+      native.close();
+    }
+  });
+
+  it("counts the first call in the window rather than starting at zero", async () => {
+    // A first call that stored count = 0 would let a caller spend `limit + 1`
+    // attempts, because the limit is compared against the value after the write.
+    const { db, native } = createDatabase();
+    try {
+      const rule = { action: "menu_item.update_price", limit: 1, windowSeconds: 60 };
+      const now = new Date("2026-01-15T10:00:00Z");
+
+      const first = await consumeRateLimit(db, "user-1", rule, now);
+      expect(first.allowed).toBe(true);
+      expect(readCounter(native, rule.action, "user-1").count).toBe(1);
+    } finally {
+      native.close();
+    }
+  });
+
+  it("increments the stored count in the same statement that returns it", async () => {
+    // The previous implementation read the row, then wrote it back. Two callers in
+    // the same window could both read `count = 1` and both write `count = 2`, so the
+    // limiter under-counted. Asserting on the stored row is what catches that: a
+    // lost update is invisible in the returned `remaining` alone, since both callers
+    // would still see a plausible number.
+    const { db, native } = createDatabase();
+    try {
+      const rule = { action: "menu_item.update_price", limit: 5, windowSeconds: 60 };
+      const now = new Date("2026-01-15T10:00:00Z");
+
+      await consumeRateLimit(db, "user-1", rule, now);
+      await consumeRateLimit(db, "user-1", rule, now);
+      await consumeRateLimit(db, "user-1", rule, now);
+
+      expect(readCounter(native, rule.action, "user-1").count).toBe(3);
+    } finally {
+      native.close();
+    }
+  });
+
+  it("resets the stored window and count together in one statement", async () => {
+    // The window rollover is the case a `setWhere` implementation got wrong: it
+    // updated the count but left `window_start` behind, so the counter either
+    // expired immediately or never. Both fields must move in one write.
+    const { db, native } = createDatabase();
+    try {
+      const rule = { action: "menu_item.update_price", limit: 5, windowSeconds: 60 };
+      const start = new Date("2026-01-15T10:00:00Z");
+      const nextWindow = new Date("2026-01-15T10:01:00Z");
+
+      await consumeRateLimit(db, "user-1", rule, start);
+      await consumeRateLimit(db, "user-1", rule, start);
+      const rollover = await consumeRateLimit(db, "user-1", rule, nextWindow);
+      expect(rollover.allowed).toBe(true);
+
+      const stored = readCounter(native, rule.action, "user-1");
+      expect(stored.count).toBe(1);
+      expect(stored.window_start).toBe(Math.floor(nextWindow.getTime() / 1000));
+      // `remaining` is derived from the stored count, so this is the same fact
+      // reaching the caller rather than a second independent source.
+      expect(rollover.remaining).toBe(4);
+    } finally {
+      native.close();
+    }
+  });
+
+  it("keeps counting from 1 in a later window until the limit again", async () => {
+    // Closes the loop between the two halves of a rollover: the new window starts
+    // fresh, but it is still enforced rather than granting an unbounded allowance.
+    const { db, native } = createDatabase();
+    try {
+      const rule = { action: "menu_item.update_price", limit: 2, windowSeconds: 60 };
+      const start = new Date("2026-01-15T10:00:00Z");
+      const nextWindow = new Date("2026-01-15T10:01:00Z");
+
+      await consumeRateLimit(db, "user-1", rule, start);
+      await consumeRateLimit(db, "user-1", rule, start);
+      expect((await consumeRateLimit(db, "user-1", rule, nextWindow)).allowed).toBe(true);
+      expect((await consumeRateLimit(db, "user-1", rule, nextWindow)).allowed).toBe(true);
+      expect((await consumeRateLimit(db, "user-1", rule, nextWindow)).allowed).toBe(false);
+      expect(readCounter(native, rule.action, "user-1").count).toBe(3);
     } finally {
       native.close();
     }

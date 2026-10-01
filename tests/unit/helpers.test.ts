@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { ADMIN_RATE_LIMITS, NotOwnerError } from "../../src/lib/admin-access";
+import { LOCAL_IP_HEADERS, PRODUCTION_IP_HEADER, trustedIpHeaders } from "../../src/lib/auth-ip";
 import { DEFAULT_OWNER_REDIRECT, loginUrlFor, safeRedirectPath } from "../../src/lib/redirects";
 import { formatPrice, mediaUrl } from "../../src/lib/format";
 import { R2_KEY_PATTERN } from "../../src/lib/validation";
@@ -82,5 +83,32 @@ describe("admin rate limits", () => {
     expect(price).toBeDefined();
     expect(image).toBeDefined();
     expect(image!.limit).toBeLessThan(price!.limit);
+  });
+});
+
+describe("trusted client IP headers", () => {
+  const production = { NODE_ENV: "production" } as unknown as NodeJS.ProcessEnv;
+  const local = { NODE_ENV: "development" } as unknown as NodeJS.ProcessEnv;
+
+  it("trusts only CF-Connecting-IP in production", () => {
+    expect(trustedIpHeaders(production)).toEqual([PRODUCTION_IP_HEADER]);
+  });
+
+  it("never trusts X-Forwarded-For or X-Real-IP in production", () => {
+    // These are attacker-controlled unless something upstream guarantees them, so
+    // trusting them in production would let anyone sidestep a rate limit by
+    // setting a header.
+    expect(trustedIpHeaders(production)).not.toContain("X-Forwarded-For");
+    expect(trustedIpHeaders(production)).not.toContain("X-Real-IP");
+  });
+
+  it("trusts the local proxy headers outside production", () => {
+    // Local dev reaches the app through a dev server, so `127.0.0.1` alone would
+    // put every developer on one shared rate-limit bucket.
+    expect(trustedIpHeaders(local)).toEqual([...LOCAL_IP_HEADERS]);
+  });
+
+  it("defaults to the local headers when NODE_ENV is unset", () => {
+    expect(trustedIpHeaders({} as NodeJS.ProcessEnv)).toEqual([...LOCAL_IP_HEADERS]);
   });
 });

@@ -4,6 +4,7 @@ import { nextCookies } from "better-auth/next-js";
 
 import { getDb } from "@/db";
 import * as schema from "@/db/schema";
+import { trustedIpHeaders } from "@/lib/auth-ip";
 
 /**
  * Better Auth, email and password only.
@@ -65,10 +66,12 @@ function createAuth() {
       // under the Worker and collapses every caller into one shared rate-limit
       // bucket. The first few requests then succeed and everything after them is
       // 429'd, which made the end-to-end suite fail depending on test order.
-      // `CF-Connecting-IP` is set by Cloudflare in production; the others are the
-      // local wrangler equivalents.
+      //
+      // The list itself comes from `@/lib/auth-ip`: production trusts only
+      // `CF-Connecting-IP`, which Cloudflare overwrites on every request, so a
+      // caller cannot choose the header that decides its own bucket.
       ipAddress: {
-        ipAddressHeaders: ["CF-Connecting-IP", "X-Forwarded-For", "X-Real-IP"],
+        ipAddressHeaders: trustedIpHeaders(),
       },
     },
 

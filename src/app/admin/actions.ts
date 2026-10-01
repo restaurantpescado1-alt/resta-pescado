@@ -4,18 +4,18 @@ import { revalidatePath } from "next/cache";
 
 import { getDb } from "@/db";
 import { getMediaBucket } from "@/db/media";
+import { consumeRateLimit } from "@/db/repositories/admin";
 import {
   getMenuItem,
-  recordAuditLog,
-  updateMenuItemImageKey,
-  updateMenuItemPrice,
+  updateMenuItemImageKeyWithAudit,
+  updateMenuItemPriceWithAudit,
 } from "@/db/repositories/menu";
 import { ADMIN_RATE_LIMITS, NotOwnerError } from "@/lib/admin-access";
 import type { ActionResult } from "@/lib/action-result";
 import { requireOwnerOrThrow } from "@/lib/authz";
+import { replaceImageSafely } from "@/lib/image-replace";
 import { buildR2Key, validateImageUpload } from "@/lib/images";
 import { updatePriceInputSchema } from "@/lib/validation";
-import { consumeRateLimit } from "@/db/repositories/admin";
 
 function failure(message: string): ActionResult {
   return { ok: false, message };
@@ -68,17 +68,18 @@ export async function updateDishPriceAction(
     return { ok: true, message: "Prix déjà à cette valeur.", priceDa };
   }
 
-  const updated = await updateMenuItemPrice(db, menuItemId, priceDa);
-  if (!updated) {
-    return failure("Le prix n'a pas pu être enregistré.");
-  }
-
-  await recordAuditLog(db, {
-    actorId: owner.id,
-    action: "menu_item.price_updated",
-    entityType: "menu_item",
-    entityId: menuItemId,
-    metadata: { from: existing.priceDa, to: priceDa, nameFr: existing.nameFr },
+  // The change and its audit row are one atomic batch: a price is never visible
+  // without its trail, and the trail never describes a change that did not happen.
+  await updateMenuItemPriceWithAudit(db, {
+    menuItemId,
+    priceDa,
+    audit: {
+      actorId: owner.id,
+      action: "menu_item.price_updated",
+      entityType: "menu_item",
+      entityId: menuItemId,
+      metadata: { from: existing.priceDa, to: priceDa, nameFr: existing.nameFr },
+    },
   });
 
   revalidatePath("/");
@@ -133,47 +134,40 @@ export async function replaceDishImageAction(formData: FormData): Promise<Action
   const previousKey = existing.imageKey;
   const newKey = buildR2Key(validated.extension);
 
-  // Upload first. If this fails nothing has changed and the dish keeps its image.
-  await media.put(newKey, validated.bytes, {
-    httpMetadata: {
-      contentType: validated.mimeType,
-      cacheControl: "public, max-age=31536000, immutable",
+  // Upload, commit, then clean up, in that order. See `replaceImageSafely` for why
+  // neither of the two deletes can happen any earlier than it does.
+  await replaceImageSafely({
+    newKey,
+    previousKey,
+    upload: async () => {
+      await media.put(newKey, validated.bytes, {
+        httpMetadata: {
+          contentType: validated.mimeType,
+          cacheControl: "public, max-age=31536000, immutable",
+        },
+      });
     },
-  });
-
-  // Then the database. If this fails, remove the new object so no orphan remains.
-  let updated;
-  try {
-    updated = await updateMenuItemImageKey(db, menuItemId, newKey);
-  } catch (error) {
-    await media.delete(newKey).catch(() => undefined);
-    throw error;
-  }
-
-  if (!updated) {
-    await media.delete(newKey).catch(() => undefined);
-    return failure("L'image n'a pas pu être enregistrée.");
-  }
-
-  // Only now is the previous object unreferenced, so only now is it deleted.
-  if (previousKey && previousKey !== newKey) {
-    await media.delete(previousKey).catch(() => undefined);
-  }
-
-  await recordAuditLog(db, {
-    actorId: owner.id,
-    action: "menu_item.image_replaced",
-    entityType: "menu_item",
-    entityId: menuItemId,
-    metadata: {
-      from: previousKey,
-      to: newKey,
-      bytes: bytes.byteLength,
-      width: validated.dimensions.width,
-      height: validated.dimensions.height,
-      mimeType: validated.mimeType,
-      nameFr: existing.nameFr,
-    },
+    commit: () =>
+      updateMenuItemImageKeyWithAudit(db, {
+        menuItemId,
+        imageKey: newKey,
+        audit: {
+          actorId: owner.id,
+          action: "menu_item.image_replaced",
+          entityType: "menu_item",
+          entityId: menuItemId,
+          metadata: {
+            from: previousKey,
+            to: newKey,
+            bytes: bytes.byteLength,
+            width: validated.dimensions.width,
+            height: validated.dimensions.height,
+            mimeType: validated.mimeType,
+            nameFr: existing.nameFr,
+          },
+        },
+      }),
+    remove: (key) => media.delete(key),
   });
 
   revalidatePath("/");

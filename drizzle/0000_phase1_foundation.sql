@@ -99,6 +99,12 @@ CREATE TABLE `site_settings` (
 	`family_note_fr` text,
 	`hero_title_fr` text,
 	`hero_subtitle_fr` text,
+	`delivery_enabled` integer DEFAULT true NOT NULL,
+	`delivery_zones_text_fr` text,
+	`delivery_fee_text_fr` text,
+	`delivery_minimum_order_text_fr` text,
+	`delivery_hours_fr` text,
+	`pickup_text_fr` text,
 	`created_at` integer DEFAULT (unixepoch()) NOT NULL,
 	`updated_at` integer DEFAULT (unixepoch()) NOT NULL,
 	CONSTRAINT "site_settings_singleton" CHECK("site_settings"."id" = 'singleton')

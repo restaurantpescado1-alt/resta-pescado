@@ -46,6 +46,24 @@ export interface RateLimitRule {
  * A fixed window is deliberate: it is a handful of upserts, it needs no extra
  * Cloudflare product, and the worst case at a window boundary is `limit` extra
  * calls. That is well inside what Phase 1 needs.
+ *
+ * The rollover is handled by a single `INSERT ... ON CONFLICT DO UPDATE` with a
+ * `CASE` expression, so counting a call and starting a new window are one atomic
+ * statement. An earlier version put the window check in `setWhere` instead:
+ *
+ *   ```sql
+ *   ON CONFLICT (key) DO UPDATE SET count = count + 1 WHERE window_start = :new
+ *   ```
+ *
+ * That is wrong on rollover. When the stored window had expired the `WHERE` failed,
+ * so the conflict branch matched nothing, `RETURNING` produced no row, and the
+ * stored count stayed at whatever the previous window ended on. With the default
+ * limit that permanently locked the owner out: the first call of every new window
+ * was rejected and the counter never came back down.
+ *
+ * Rather than guess a count when `RETURNING` is empty, this throws. A missing row
+ * means the statement did not do what it was asked to, and silently substituting a
+ * count would turn a bug into a limit that is either too tight or too loose.
  */
 export async function consumeRateLimit(
   db: Database,
@@ -63,16 +81,23 @@ export async function consumeRateLimit(
     .values({ key, windowStart, count: 1 })
     .onConflictDoUpdate({
       target: rateLimitCounters.key,
-      set: { count: sql`${rateLimitCounters.count} + 1` },
-      setWhere: sql`${rateLimitCounters.windowStart} = ${windowStart}`,
+      set: {
+        // Same window: count this call. New window: start over at 1 for the
+        // call being made now.
+        count: sql`CASE WHEN ${rateLimitCounters.windowStart} = ${windowStart} THEN ${rateLimitCounters.count} + 1 ELSE 1 END`,
+        windowStart: sql`CASE WHEN ${rateLimitCounters.windowStart} = ${windowStart} THEN ${rateLimitCounters.windowStart} ELSE ${windowStart} END`,
+      },
     })
     .returning();
 
-  const count = rows[0]?.count ?? 1;
+  const row = rows[0];
+  if (!row) {
+    throw new Error(`Rate limit counter for "${key}" was not returned by the upsert`);
+  }
 
   return {
-    allowed: count <= rule.limit,
-    remaining: Math.max(0, rule.limit - count),
+    allowed: row.count <= rule.limit,
+    remaining: Math.max(0, rule.limit - row.count),
     retryAfterSeconds: Math.max(1, windowEnd - nowSeconds),
   };
 }

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "3306f226-fc3b-4dc0-b7e8-e99574e38d14",
+  "id": "0a3bca38-dce6-4c35-8a63-b63f3c9e6164",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "account": {
@@ -686,6 +686,49 @@
         },
         "hero_subtitle_fr": {
           "name": "hero_subtitle_fr",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "delivery_enabled": {
+          "name": "delivery_enabled",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
+        },
+        "delivery_zones_text_fr": {
+          "name": "delivery_zones_text_fr",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "delivery_fee_text_fr": {
+          "name": "delivery_fee_text_fr",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "delivery_minimum_order_text_fr": {
+          "name": "delivery_minimum_order_text_fr",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "delivery_hours_fr": {
+          "name": "delivery_hours_fr",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "pickup_text_fr": {
+          "name": "pickup_text_fr",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

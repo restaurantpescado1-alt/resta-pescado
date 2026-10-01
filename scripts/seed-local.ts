@@ -55,6 +55,24 @@ async function findLocalD1File(): Promise<string> {
   return join(D1_STATE_DIR, directory, sqlite);
 }
 
+/**
+ * Owner-confirmed delivery settings.
+ *
+ * Delivery is arranged and paid for by phone rather than online, so each field is
+ * the owner's own statement. Every string below is a confirmed fact and nothing
+ * more: no zone list, no fee amount, and no opening hours are invented, because
+ * `docs/CONTENT_POLICY.md` rules out stating anything the owner has not confirmed.
+ */
+const SEED_DELIVERY = {
+  enabled: true,
+  zones:
+    "La zone de livraison est confirmée par téléphone après avoir communiqué votre adresse.",
+  fee: "Les frais de livraison sont communiqués par téléphone.",
+  minimumOrder: "Il n'y a pas de commande minimum.",
+  hours: "Les heures de livraison sont les mêmes que les heures d'ouverture du restaurant.",
+  ordering: "Commande et livraison par téléphone au 0540559967. La livraison est payante.",
+} as const;
+
 const SEED_CATEGORY_ID = "dev-category-poissons";
 const SEED_ITEM_ID = "dev-item-dorade";
 /**
@@ -119,13 +137,22 @@ export async function seed(): Promise<void> {
       )
       .run(userId, ownerName);
 
+    // `DO UPDATE` so re-seeding restores the confirmed delivery statements. There
+    // is no settings UI yet, so the seed is the only writer of these columns and
+    // nothing here can clobber an owner edit.
     native
       .prepare(
-        "INSERT INTO site_settings (id, restaurant_name_fr, hero_title_fr, hero_subtitle_fr, created_at, updated_at) VALUES ('singleton', 'Resta Pescado', ?, ?, unixepoch(), unixepoch()) ON CONFLICT(id) DO NOTHING",
+        "INSERT INTO site_settings (id, restaurant_name_fr, hero_title_fr, hero_subtitle_fr, delivery_enabled, delivery_zones_text_fr, delivery_fee_text_fr, delivery_minimum_order_text_fr, delivery_hours_fr, pickup_text_fr, created_at, updated_at) VALUES ('singleton', 'Resta Pescado', ?, ?, ?, ?, ?, ?, ?, ?, unixepoch(), unixepoch()) ON CONFLICT(id) DO UPDATE SET hero_title_fr = excluded.hero_title_fr, hero_subtitle_fr = excluded.hero_subtitle_fr, delivery_enabled = excluded.delivery_enabled, delivery_zones_text_fr = excluded.delivery_zones_text_fr, delivery_fee_text_fr = excluded.delivery_fee_text_fr, delivery_minimum_order_text_fr = excluded.delivery_minimum_order_text_fr, delivery_hours_fr = excluded.delivery_hours_fr, pickup_text_fr = excluded.pickup_text_fr, updated_at = unixepoch()",
       )
       .run(
         "Poissons et fruits de mer, préparés à Alger.",
         "Une carte courte, révisée chaque jour.",
+        SEED_DELIVERY.enabled ? 1 : 0,
+        SEED_DELIVERY.zones,
+        SEED_DELIVERY.fee,
+        SEED_DELIVERY.minimumOrder,
+        SEED_DELIVERY.hours,
+        SEED_DELIVERY.ordering,
       );
 
     native
