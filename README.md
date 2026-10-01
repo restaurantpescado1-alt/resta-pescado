@@ -17,3 +17,65 @@ No online ordering, payment, WhatsApp ordering, online reservations, loyalty, pr
 ## Start here
 
 Read `docs/OPENCODE_PHASE_1.md`, `docs/ARCHITECTURE.md`, and `docs/SECURITY.md` before implementation.
+`docs/CONTENT_POLICY.md` governs what copy and imagery may claim.
+
+## Local development
+
+Requires Node 22 or newer.
+
+```bash
+npm install
+npm run test:e2e:install     # Chromium, for the end-to-end suite only
+cp .env.example .dev.vars    # then fill in BETTER_AUTH_SECRET and OWNER_PASSWORD
+npm run db:migrate:local
+npm run db:seed:local
+npm run dev
+```
+
+`.dev.vars` is gitignored and never committed. `BETTER_AUTH_SECRET` needs at least 32
+random characters, and `OWNER_PASSWORD` at least 12, which Better Auth enforces.
+
+The seed creates the single owner, one visible category, one visible dish, and a flat
+placeholder image in local R2. It is idempotent and safe to re-run: it resets the seeded
+dish's price and image so the end-to-end suite starts from a known state.
+
+## Commands
+
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Next.js dev server, with the OpenNext Cloudflare bindings. |
+| `npm run build` | Production Next.js build. |
+| `npm run build:cf` | OpenNext build, producing `.open-next/worker.js`. |
+| `npm run preview` | Builds, then runs the Worker in workerd on `E2E_BASE_URL`. |
+| `npm run lint` | ESLint, flat config. |
+| `npm run typecheck` | `tsc --noEmit`. |
+| `npm test` | Vitest unit and repository suites. |
+| `npm run test:e2e` | Playwright, against `preview` with local D1 and R2. |
+| `npm run db:generate` | Regenerates Drizzle migrations from the schema. |
+| `npm run db:migrate:local` | Applies migrations to the local D1 database. |
+| `npm run db:seed:local` | Seeds the local owner, category, dish, and image. |
+| `npm run cf-typegen` | Regenerates `cloudflare-env.d.ts` from `wrangler.jsonc`. |
+
+## End-to-end notes
+
+`npm run test:e2e` starts the server itself: it seeds, builds, and previews before running
+any test. Three projects run in order:
+
+- `setup` signs in once and saves the session to `playwright/.auth/owner.json`.
+- `anonymous` runs the access-control specs from an empty storage state.
+- `chromium` runs everything else against the saved session.
+
+The single sign-in is deliberate. Better Auth rate limits `/sign-in/email` to five requests
+a minute, and the suite has more authenticated tests than that, so signing in per test
+spent the whole budget and the surplus requests came back as `429`, which the login form
+reports as "wrong credentials".
+
+OpenNext is not fully supported on Windows. `preview` and `build:cf` work, but a stale
+`workerd` process holding port 8787 will serve an old build, and can lock `.open-next`
+with `EPERM`. Kill it before rebuilding.
+
+## Deployment
+
+`npm run deploy` builds and deploys through OpenNext. Phase 1 is not deployed: the D1 and
+R2 bindings, the `BETTER_AUTH_SECRET`, and the owner account have to exist in the target
+account first, and none of that is provisioned here.
