@@ -4,10 +4,12 @@ import type { Database } from "..";
 import { runAtomicBatch } from "../atomic";
 import {
   auditLogs,
+  galleryImages,
   menuCategories,
   menuItems,
   siteSettings,
   type AuditLogRow,
+  type GalleryImageRow,
   type MenuCategoryRow,
   type MenuItemRow,
   type SiteSettingsRow,
@@ -220,6 +222,35 @@ export async function updateMenuItemImageKeyWithAudit(
   );
 }
 
+/**
+ * Marks or unmarks a dish as owner-featured, with its audit entry, in one batch.
+ *
+ * This is the switch behind the home page preview. It is deliberately a boolean the
+ * owner controls rather than something derived from the menu order, because "which
+ * dishes are we recommending right now" is an editorial decision that changes with
+ * what the boat brought in.
+ *
+ * Nothing seeds this true, so an untouched database falls back to the illustrated
+ * fish dishes rather than implying a recommendation.
+ */
+export async function updateMenuItemFeaturedWithAudit(
+  db: Database,
+  input: { menuItemId: string; isFeatured: boolean; audit: AuditEntry },
+  now: Date = new Date(),
+): Promise<void> {
+  await runAtomicBatch(
+    db,
+    [
+      db
+        .update(menuItems)
+        .set({ isFeatured: input.isFeatured, updatedAt: toTimestamp(now) })
+        .where(eq(menuItems.id, input.menuItemId)),
+      buildAuditInsert(db, input.audit, now),
+    ],
+    UPDATE_MUST_MATCH,
+  );
+}
+
 export async function getSiteSettings(db: Database): Promise<SiteSettingsRow | null> {
   const rows = await db
     .select()
@@ -227,6 +258,21 @@ export async function getSiteSettings(db: Database): Promise<SiteSettingsRow | n
     .where(eq(siteSettings.id, SITE_SETTINGS_SINGLETON_ID))
     .limit(1);
   return rows[0] ?? null;
+}
+
+/**
+ * Visible gallery photographs in manual order.
+ *
+ * Returns an empty array until the owner uploads photographs. `/galerie` renders an
+ * honest empty state for that case rather than filling the page with the AI fish
+ * illustrations, which illustrate species and are not photographs of the restaurant.
+ */
+export async function getPublicGalleryImages(db: Database): Promise<GalleryImageRow[]> {
+  return db
+    .select()
+    .from(galleryImages)
+    .where(eq(galleryImages.isVisible, true))
+    .orderBy(asc(galleryImages.sortOrder), asc(galleryImages.altTextFr));
 }
 
 /** Most recent first. Owner-only view. */

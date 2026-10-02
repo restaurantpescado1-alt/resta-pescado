@@ -7,6 +7,7 @@ import { getMediaBucket } from "@/db/media";
 import { consumeRateLimit } from "@/db/repositories/admin";
 import {
   getMenuItem,
+  updateMenuItemFeaturedWithAudit,
   updateMenuItemImageKeyWithAudit,
   updateMenuItemPriceWithAudit,
 } from "@/db/repositories/menu";
@@ -15,7 +16,7 @@ import type { ActionResult } from "@/lib/action-result";
 import { requireOwnerOrThrow } from "@/lib/authz";
 import { replaceImageSafely } from "@/lib/image-replace";
 import { buildR2Key, validateImageUpload } from "@/lib/images";
-import { updatePriceInputSchema } from "@/lib/validation";
+import { updateFeaturedInputSchema, updatePriceInputSchema } from "@/lib/validation";
 
 function failure(message: string): ActionResult {
   return { ok: false, message };
@@ -87,6 +88,73 @@ export async function updateDishPriceAction(
   revalidatePath("/admin/menu");
 
   return { ok: true, message: "Prix mis à jour.", priceDa };
+}
+
+/**
+ * Records or withdraws the owner's recommendation for a dish.
+ *
+ * This is the only thing that puts a dish into the home page preview ahead of the
+ * illustrated fish fallback. It changes nothing about how the card reads: the dish is
+ * still never badged, so the preview stays neutral either way.
+ */
+export async function setDishFeaturedAction(rawInput: unknown): Promise<ActionResult> {
+  let owner;
+  try {
+    owner = await requireOwnerOrThrow();
+  } catch (error) {
+    if (error instanceof NotOwnerError) {
+      return failure(error.message);
+    }
+    throw error;
+  }
+
+  const db = getDb();
+
+  const limit = await consumeRateLimit(db, owner.id, ADMIN_RATE_LIMITS.setDishFeatured!);
+  if (!limit.allowed) {
+    return failure("Trop de tentatives. Réessayez dans quelques instants.");
+  }
+
+  const parsed = updateFeaturedInputSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return failure(parsed.error.issues[0]?.message ?? "Sélection invalide.");
+  }
+
+  const { menuItemId, isFeatured } = parsed.data;
+
+  const existing = await getMenuItem(db, menuItemId);
+  if (!existing) {
+    return failure("Plat introuvable.");
+  }
+
+  if (existing.isFeatured === isFeatured) {
+    return {
+      ok: true,
+      message: isFeatured ? "Plat déjà mis en avant." : "Plat retiré de la mise en avant.",
+      isFeatured,
+    };
+  }
+
+  await updateMenuItemFeaturedWithAudit(db, {
+    menuItemId,
+    isFeatured,
+    audit: {
+      actorId: owner.id,
+      action: "menu_item.featured_updated",
+      entityType: "menu_item",
+      entityId: menuItemId,
+      metadata: { from: existing.isFeatured, to: isFeatured, nameFr: existing.nameFr },
+    },
+  });
+
+  revalidatePath("/");
+  revalidatePath("/admin/menu");
+
+  return {
+    ok: true,
+    message: isFeatured ? "Plat mis en avant." : "Retiré de la mise en avant.",
+    isFeatured,
+  };
 }
 
 export async function replaceDishImageAction(formData: FormData): Promise<ActionResult> {

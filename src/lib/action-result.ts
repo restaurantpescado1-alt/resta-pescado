@@ -11,4 +11,5 @@ export interface ActionResult {
   message: string;
   priceDa?: number;
   imageKey?: string | null;
+  isFeatured?: boolean;
 }

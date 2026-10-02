@@ -209,9 +209,63 @@ export function readImageDimensions(bytes: Uint8Array, mimeType: AllowedMimeType
 }
 
 /**
+ * Whether the file is a whole image rather than a recognisable header.
+ *
+ * Every other check here reads the front of the file: the magic number, then the
+ * dimension fields. That is enough to know what the upload claims to be, and not enough
+ * to know a browser will be able to display it. A file that stops after its header
+ * passes all of it.
+ *
+ * That matters more than it sounds. There is no control for removing a dish photo, so a
+ * truncated upload cannot be undone through the dashboard: it would sit in R2, D1 would
+ * point at it, and every visitor would see a broken image on the live menu until
+ * someone edited the database by hand.
+ *
+ * So each format is asked for its terminator, which is pure byte inspection and needs no
+ * image decoder:
+ *
+ * - JPEG ends with the EOI marker `FF D9`.
+ * - PNG ends with the `IEND` chunk.
+ * - WebP declares its own total length in the RIFF header, so the file can be compared
+ *   against the number it claims to be. That is stricter than a terminator and also
+ *   catches trailing garbage.
+ *
+ * This catches truncation and corruption at the end of a file. It is not a full decode,
+ * and does not pretend to be: a genuinely damaged file whose length and terminator are
+ * intact can still slip through.
+ */
+export function isCompleteImage(bytes: Uint8Array, mimeType: AllowedMimeType): boolean {
+  if (mimeType === "image/jpeg") {
+    if (bytes.byteLength < 4) {
+      return false;
+    }
+    return bytes[bytes.byteLength - 2] === 0xff && bytes[bytes.byteLength - 1] === 0xd9;
+  }
+
+  if (mimeType === "image/png") {
+    if (bytes.byteLength < 8) {
+      return false;
+    }
+    // "IEND" is the last chunk of a valid PNG, immediately before the final CRC.
+    const tail = readAscii(bytes, bytes.byteLength - 8, 4);
+    return tail === "IEND";
+  }
+
+  // WebP: bytes 4..8 hold the RIFF payload length, which covers everything after the
+  // first eight bytes. Comparing it to the actual length catches both a short file and
+  // bytes appended after the image.
+  if (bytes.byteLength < 12) {
+    return false;
+  }
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const declared = view.getUint32(4, true);
+  return declared + 8 === bytes.byteLength;
+}
+
+/**
  * Full gate for an upload. Checks, in order: declared type, size, real
- * signature, parseable dimensions, and dimension bounds. Returns a reason string
- * on the first failure so the admin sees an actionable message.
+ * signature, parseable dimensions, dimension bounds, and completeness. Returns a reason
+ * string on the first failure so the admin sees an actionable message.
  */
 export function validateImageUpload(
   declaredMimeType: string,
@@ -254,6 +308,13 @@ export function validateImageUpload(
     return {
       ok: false,
       reason: `Dimensions d'image non autorisées. Entre ${MIN_IMAGE_DIMENSION} et ${MAX_IMAGE_DIMENSION} pixels.`,
+    };
+  }
+
+  if (!isCompleteImage(bytes, mimeType)) {
+    return {
+      ok: false,
+      reason: "L'image semble incomplète ou corrompue. Réessayez avec un autre fichier.",
     };
   }
 

@@ -32,6 +32,71 @@ export function hasPhase1Schema(native: MigrationTarget): boolean {
 }
 
 /**
+ * Whether the Phase 2 columns and tables are present.
+ *
+ * The seed needs a *newest* schema check rather than a "any migration ran" check:
+ * a database can be Phase 1 only, and then the seed must still apply `0001` before
+ * it can write `fish_reference_slug`.
+ */
+export function hasPhase2Schema(native: MigrationTarget): boolean {
+  const columns = native.prepare("PRAGMA table_info(menu_items)").all() as unknown[];
+  const hasFishColumn = columns.some((column) => {
+    const name = (column as { name?: unknown }).name;
+    return name === "fish_reference_slug";
+  });
+  const tables = native
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?")
+    .all("gallery_images") as unknown[];
+  return hasFishColumn && tables.length > 0;
+}
+
+function hashMigration(cwd: string, tag: string): string {
+  return createHash("sha256").update(readFileSync(join(resolve(cwd, "drizzle"), `${tag}.sql`), "utf8")).digest("hex");
+}
+
+/**
+ * Records a migration as applied without running it.
+ *
+ * Needed for the mixed-provenance case: `db:migrate:local` applies Phase 1 through
+ * wrangler, which bookskeeps in `d1_migrations` and leaves `__drizzle_migrations`
+ * empty. `applyMigrations` therefore still considers `0000` pending and would fail on
+ * its first `CREATE TABLE`. Marking it applied by hash lets `applyMigrations` pick up
+ * exactly the migrations that are genuinely missing, including `0001`.
+ *
+ * Must only be called when the migration's effects are already observable in the
+ * database.
+ */
+export function markMigrationApplied(
+  native: MigrationTarget,
+  tag: string,
+  cwd: string = process.cwd(),
+): void {
+  native.exec(`
+    CREATE TABLE IF NOT EXISTS __drizzle_migrations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      hash text NOT NULL,
+      created_at numeric
+    );
+  `);
+// Two separate problems with the obvious `INSERT OR IGNORE ... SELECT`:
+  //
+  // 1. `SELECT ... FROM __drizzle_migrations` produces no rows when the table was just
+  //    created empty by the statement above, so the insert silently did nothing and the
+  //    migration looked unapplied on the next run.
+  // 2. `OR IGNORE` cannot deduplicate here anyway. Drizzle's bookkeeping table has no
+  //    unique index on `hash`, so every call appended another row.
+  //
+  // The guard is therefore explicit: one row when the hash is absent, none when it is
+  // already recorded. The subquery still inherits the newest timestamp when rows exist.
+  const hash = hashMigration(cwd, tag);
+  native
+    .prepare(
+      "INSERT INTO __drizzle_migrations (hash, created_at) SELECT ?, coalesce((SELECT max(created_at) FROM __drizzle_migrations), 0) WHERE NOT EXISTS (SELECT 1 FROM __drizzle_migrations WHERE hash = ?)",
+    )
+    .run(hash, hash);
+}
+
+/**
  * Applies the Drizzle migration files in `drizzle/` to a plain SQLite file.
  *
  * The normal local flow applies migrations through wrangler

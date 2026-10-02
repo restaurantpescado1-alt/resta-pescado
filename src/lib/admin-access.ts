@@ -33,4 +33,5 @@ export class NotOwnerError extends Error {
 export const ADMIN_RATE_LIMITS: Record<string, RateLimitRule> = {
   updateDishPrice: { action: "menu_item.update_price", limit: 60, windowSeconds: 60 },
   replaceDishImage: { action: "menu_item.replace_image", limit: 10, windowSeconds: 60 },
+  setDishFeatured: { action: "menu_item.set_featured", limit: 60, windowSeconds: 60 },
 };

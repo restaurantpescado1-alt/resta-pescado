@@ -8,8 +8,51 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
  */
 
 export const SEEDED_CATEGORY_SLUG = "poissons";
-export const SEEDED_ITEM_ID = "dev-item-dorade";
-export const SEEDED_PRICE_DA = 900;
+export const SEEDED_CATEGORY_NAME = "Nos Poissons";
+
+/**
+ * A dish from the owner-approved menu that carries a fish reference illustration.
+ *
+ * `Dorade` rather than the old placeholder dish: the seeded menu is now the real
+ * 34-item card, and this one has both a confirmed price and a generated illustration,
+ * which is what the public and admin assertions need.
+ */
+export const SEEDED_ITEM_ID = "item-dorade";
+export const SEEDED_ITEM_NAME = "Dorade";
+export const SEEDED_PRICE_DA = 1200;
+
+/**
+ * A dish with neither a photograph nor an illustration, used to assert the
+ * "no image" path renders honestly rather than inventing a placeholder photo.
+ */
+export const SEEDED_ITEM_WITHOUT_IMAGE_ID = "item-soda";
+
+/**
+ * The dish the upload specs mutate.
+ *
+ * Uploading a photo is not reversible: there is no "remove image" control, so the
+ * first successful upload sticks for the rest of the run. Any spec that uploads has to
+ * use a dish nothing else makes an assertion about, or the suite becomes
+ * order-dependent and the failure looks like a product bug.
+ *
+ * `item-canette` is a drink with no species, so it is invisible to the fish-guide and
+ * menu-card assertions.
+ */
+export const UPLOAD_TEST_ITEM_ID = "item-canette";
+
+/** The species slug mapped to {@link SEEDED_ITEM_ID}. */
+export const SEEDED_FISH_SLUG = "dorade";
+
+/** Phone, hours, and map are owner-confirmed and appear on several pages. */
+export const CONFIRMED_PHONE = "0540559967";
+export const CONFIRMED_HOURS =
+  "Ouvert tous les jours ouvrables de 11h15 à 15h15. Fermé le vendredi.";
+export const CONFIRMED_MAP_URL = "https://maps.app.goo.gl/n3cMmMpeXeLDsQtY6";
+export const CONFIRMED_FAMILY_NOTE =
+  "Restaurant familial. Une chaise haute est disponible pour les enfants.";
+
+/** The mandatory label for every AI-generated fish illustration. */
+export const FISH_LABEL = "Illustration de référence générée par IA";
 
 export function ownerEmail(): string {
   return process.env.OWNER_EMAIL ?? "owner@resta-pescado.local";
@@ -55,7 +98,7 @@ export function itemRow(page: Page, itemId: string = SEEDED_ITEM_ID): Locator {
 /** Reads the price currently shown on the public menu for the seeded dish. */
 export async function readPublicPrice(page: Page): Promise<string> {
   await page.goto("/menu");
-  const row = page.locator(`[data-item-id="${SEEDED_ITEM_ID}"], li`).filter({ hasText: "Dorade" }).first();
+  const row = itemRow(page);
   const text = await row.innerText();
   const match = /(\d[\d\s]*)\s*DA/.exec(text);
   expect(match, `No price found in: ${text}`).not.toBeNull();

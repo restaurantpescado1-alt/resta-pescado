@@ -5,8 +5,16 @@ import { ServiceUnavailable } from "@/components/service-unavailable";
 import { getDb } from "@/db";
 import { getPublicMenu, getSiteSettings } from "@/db/repositories/menu";
 import type { MenuCategoryRow, MenuItemRow, SiteSettingsRow } from "@/db/schema";
+import { FISH_REFERENCE_IMAGES, FISH_REFERENCE_LABEL, listFishReferenceImages } from "@/lib/fish-images";
+import { selectHomePreview, telHref } from "@/lib/public-site";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * How many dishes the neutral preview shows. A teaser, not the menu: the whole card is
+ * 34 dishes long and the section exists to invite a click through to `/menu`.
+ */
+const PREVIEW_LIMIT = 6;
 
 type HomeData =
   | { status: "ok"; items: MenuItemRow[]; settings: SiteSettingsRow | null }
@@ -22,11 +30,11 @@ async function loadHome(): Promise<HomeData> {
     const db = getDb();
     const [menu, settings] = await Promise.all([getPublicMenu(db), getSiteSettings(db)]);
 
-    const all = menu.categories.flatMap((category: MenuCategoryRow & { items: MenuItemRow[] }) => category.items);
-    const featured = all.filter((item) => item.isFeatured);
-    const shown = featured.length > 0 ? featured.slice(0, 3) : all.slice(0, 3);
+    const all = menu.categories.flatMap(
+      (category: MenuCategoryRow & { items: MenuItemRow[] }) => category.items,
+    );
 
-    return { status: "ok", items: shown, settings };
+    return { status: "ok", items: selectHomePreview(all, PREVIEW_LIMIT), settings };
   } catch (error) {
     console.error("Home read failed", error);
     return { status: "error", detail: "Le contenu n'a pas pu être chargé." };
@@ -41,51 +49,202 @@ export default async function HomePage() {
   }
 
   const { items, settings } = data;
+  const guide = listFishReferenceImages().slice(0, 4);
 
   return (
     <div data-testid="home">
-      <section className="rounded border border-line bg-white/60 p-8">
-        <h1 className="text-3xl font-semibold tracking-tight">
-          {settings?.heroTitleFr ?? "Poissons et fruits de mer, préparés à Alger."}
-        </h1>
-        {/* No sourcing claim in the fallback: docs/CONTENT_POLICY.md forbids
-            inventing provenance, and nothing in the database states it. */}
-        <p className="mt-3 max-w-prose text-ink-soft">
-          {settings?.heroSubtitleFr ?? "Une carte courte, mise à jour par le propriétaire."}
-        </p>
-        <div className="mt-6 flex flex-wrap gap-3">
-          <Link
-            href="/menu"
-            className="rounded bg-sea px-5 py-2.5 text-sm font-semibold text-sand transition-colors hover:bg-sea-deep"
-          >
-            Voir la carte
+      {/*
+        Hero. The subtitle is the owner's own sentence from `site_settings`; the
+        fallback makes no sourcing or provenance claim, because
+        `docs/CONTENT_POLICY.md` forbids inventing one and nothing in the database
+        states it.
+      */}
+      {/*
+          The negative margin pulls the hero out to the edge of the content container so
+          the wave runs the full width. It is exactly `main`'s own `px-4` and nothing
+          more.
+
+          Wider values here (`sm:-mx-6 lg:-mx-8`) overflowed the viewport instead,
+          because `main`'s padding never grew at those breakpoints: at 768px the hero
+          measured 784px wide against a 768px viewport and the page scrolled sideways.
+        */}
+        <section className="wave-hero -mx-4 px-4 py-14 text-on-ocean">
+        <div className="mx-auto max-w-6xl">
+          <h1 className="max-w-2xl text-4xl font-bold tracking-tight sm:text-5xl">
+            {settings?.heroTitleFr ?? "Poissons et fruits de mer, préparés à Alger."}
+          </h1>
+          <p className="mt-4 max-w-xl text-lg text-on-ocean-soft">
+            {settings?.heroSubtitleFr ?? "Une carte courte, révisée chaque jour."}
+          </p>
+
+          <div className="mt-8 flex flex-wrap gap-3">
+            <Link
+              href="/menu"
+              className="rounded-full bg-accent px-6 py-3 text-sm font-bold text-ink transition-transform hover:scale-[1.02]"
+            >
+              Voir la carte
+            </Link>
+            {settings?.phoneFr ? (
+              <a
+                href={telHref(settings.phoneFr)}
+                className="rounded-full border-2 border-on-ocean px-6 py-3 text-sm font-bold transition-colors hover:bg-white/10"
+                data-testid="hero-call"
+              >
+                Appeler {settings.phoneFr}
+              </a>
+            ) : null}
+          </div>
+        </div>
+      </section>
+
+      <hr className="wave-divider my-0" />
+
+      {/*
+        Neutral menu preview. No badge and no endorsement wording: the owner has not
+        selected any dishes, so the section is titled as an invitation rather than a
+        recommendation.
+      */}
+      <section className="py-12" aria-labelledby="carte-titre">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <h2 id="carte-titre" className="text-2xl font-bold tracking-tight" data-testid="preview-title">
+            Découvrez notre carte
+          </h2>
+          <Link href="/menu" className="text-sm font-semibold text-marine underline underline-offset-4">
+            Toute la carte
           </Link>
+        </div>
+
+        {items.length > 0 ? (
+          <ul className="mt-6 grid gap-x-8 md:grid-cols-2">
+            {items.map((item) => (
+              <DishCard key={item.id} item={item} />
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-6 rounded-lg border border-dashed border-line-strong p-6 text-ink/75">
+            La carte est en cours de mise à jour. Merci de nous appeler pour les
+            disponibilités du jour.
+          </p>
+        )}
+      </section>
+
+      {/*
+        Family section. `family_note_fr` is the owner's own sentence about the high
+        chair, printed as written.
+      */}
+      {settings?.familyNoteFr ? (
+        <section
+          className="rounded-2xl bg-marine px-6 py-8 text-on-ocean sm:px-8"
+          aria-labelledby="famille-titre"
+        >
+          <h2 id="famille-titre" className="text-xl font-bold">
+            En famille
+          </h2>
+          <p className="mt-2 max-w-prose text-on-ocean-soft">{settings.familyNoteFr}</p>
+        </section>
+      ) : null}
+
+      {/*
+        Fish guide preview. These are AI-generated species illustrations, so the
+        mandatory label travels with them.
+      */}
+      <section className="py-12" aria-labelledby="poissons-titre">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <h2 id="poissons-titre" className="text-2xl font-bold tracking-tight">
+            Nos poissons
+          </h2>
+          <Link
+            href="/a-propos#guide-poissons"
+            className="text-sm font-semibold text-marine underline underline-offset-4"
+          >
+            Tout voir
+          </Link>
+        </div>
+
+        <ul className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+          {guide.map((fish) => (
+            <li key={fish.slug} className="overflow-hidden rounded-xl border border-line bg-white/60">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={fish.src}
+                alt={fish.altFr}
+                width={fish.width}
+                height={fish.height}
+                loading="lazy"
+                className="aspect-[4/3] w-full object-cover"
+              />
+              <div className="px-3 py-2">
+                <p className="text-sm font-semibold">{fish.nameFr}</p>
+                <p className="mt-0.5 text-[11px] leading-tight text-ink/70">{FISH_REFERENCE_LABEL}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      {/*
+        Practical facts, all owner-confirmed. The address is omitted entirely because it
+        has never been confirmed; the map link needs no address.
+      */}
+      <section className="grid gap-4 pb-12 sm:grid-cols-2" aria-labelledby="infos-titre">
+        <h2 id="infos-titre" className="sr-only">
+          Informations pratiques
+        </h2>
+
+        <div className="rounded-2xl border border-line bg-white/60 p-6">
+          <h3 className="text-lg font-bold">Horaires</h3>
+          {settings?.hoursFr ? (
+            <p className="mt-2 text-ink/75" data-testid="home-hours">
+              {settings.hoursFr}
+            </p>
+          ) : (
+            <p className="mt-2 text-ink/75">Horaires à confirmer.</p>
+          )}
+        </div>
+
+        {settings?.deliveryEnabled ? (
+          <div className="rounded-2xl border border-line bg-white/60 p-6">
+            <h3 className="text-lg font-bold">Livraison</h3>
+            {settings.deliveryZonesTextFr ? (
+              <p className="mt-2 text-ink/75">{settings.deliveryZonesTextFr}</p>
+            ) : null}
+            {settings.pickupTextFr ? (
+              <p className="mt-2 font-semibold text-marine">{settings.pickupTextFr}</p>
+            ) : null}
+          </div>
+        ) : null}
+
+        <div className="rounded-2xl bg-ocean p-6 text-on-ocean sm:col-span-2">
+          <h3 className="text-lg font-bold">Nous appeler</h3>
           {settings?.phoneFr ? (
             <a
-              href={`tel:${settings.phoneFr.replace(/\s+/g, "")}`}
-              className="rounded border border-line px-5 py-2.5 text-sm font-semibold transition-colors hover:bg-sand"
+              href={telHref(settings.phoneFr)}
+              className="mt-2 block text-2xl font-bold underline underline-offset-4"
+              data-testid="home-phone"
             >
-              Appeler
+              {settings.phoneFr}
+            </a>
+          ) : (
+            <p className="mt-2">Numéro à confirmer.</p>
+          )}
+          {settings?.mapsUrl ? (
+            <a
+              href={settings.mapsUrl}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="mt-3 inline-block rounded-full border border-on-ocean/60 px-4 py-2 text-sm font-semibold hover:bg-white/10"
+            >
+              Voir sur la carte
             </a>
           ) : null}
         </div>
       </section>
 
-      {items.length > 0 ? (
-        <section className="mt-10">
-          <h2 className="text-lg font-semibold">En ce moment</h2>
-          <ul className="mt-2">
-            {items.map((item) => (
-              <DishCard key={item.id} item={item} />
-            ))}
-          </ul>
-          <p className="mt-4 text-sm">
-            <Link href="/menu" className="underline underline-offset-4">
-              Toute la carte
-            </Link>
-          </p>
-        </section>
-      ) : null}
+      {/*
+        Kept referenced so a typo in the manifest surfaces as a test failure rather
+        than an illustration quietly disappearing from the guide.
+      */}
+      <p className="sr-only">{Object.keys(FISH_REFERENCE_IMAGES).length} illustrations de référence.</p>
     </div>
   );
 }

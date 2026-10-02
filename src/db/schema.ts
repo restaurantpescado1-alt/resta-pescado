@@ -126,11 +126,29 @@ export const menuItems = sqliteTable(
       .notNull()
       .references(() => menuCategories.id, { onDelete: "cascade" }),
     nameFr: text("name_fr").notNull(),
-    descriptionFr: text("description_fr").notNull().default(""),
+    /**
+     * Optional. Deliberately nullable rather than an empty string, so "the owner
+     * has not written a description" is representable and distinguishable from a
+     * written one. Most of the confirmed Phase 2 menu has no description, and
+     * `docs/CONTENT_POLICY.md` forbids inventing one.
+     */
+    descriptionFr: text("description_fr"),
     /** Algerian dinar, whole units. Stored as an integer, never a float. */
     priceDa: integer("price_da").notNull(),
     /** Randomised R2 object key, or null while no image is set. */
     imageKey: text("image_key"),
+    /**
+     * Key into `src/lib/fish-images.ts`, pointing at an AI-generated *reference
+     * illustration* of the fish species.
+     *
+     * Kept separate from `imageKey` on purpose. `imageKey` is a real photograph of
+     * the cooked dish in R2; this is a drawing of the animal, in `public/`, that
+     * answers "which fish is this" and must never be shown as "what the dish looks
+     * like". Collapsing them into one column would make that distinction
+     * unrenderable, and it would put a static asset behind the authenticated media
+     * route. A real photo always wins over the illustration.
+     */
+    fishReferenceSlug: text("fish_reference_slug"),
     isFeatured: integer("is_featured", { mode: "boolean" }).notNull().default(false),
     isVisible: integer("is_visible", { mode: "boolean" }).notNull().default(true),
     sortOrder: integer("sort_order").notNull().default(0),
@@ -143,6 +161,38 @@ export const menuItems = sqliteTable(
     // them even if a future write path forgets to validate.
     check("menu_items_price_da_positive", sql`${table.priceDa} > 0`),
   ],
+);
+
+/**
+ * Restaurant photographs for the public gallery.
+ *
+ * Declared in `docs/ARCHITECTURE.md` and built now that `/galerie` reads it. The
+ * table is deliberately empty on arrival: there is no restaurant photography yet,
+ * and `docs/CONTENT_POLICY.md` ranks "no image" above invented imagery, so seeding
+ * it with the AI fish illustrations or stock photos would be the wrong trade. The
+ * page renders an honest empty state until real photographs are uploaded through
+ * the owner dashboard.
+ *
+ * Note these are *photographs of the place*. Fish illustrations deliberately do not
+ * live here, so a gallery visitor never confuses a reference drawing for a photo.
+ */
+export const galleryImages = sqliteTable(
+  "gallery_images",
+  {
+    id: text("id").primaryKey(),
+    /** Randomised R2 object key, following `gallery/{year}/{uuid}.webp`. */
+    imageKey: text("image_key").notNull(),
+    /**
+     * Required. An image with no description is unusable to a screen-reader user, so
+     * this is not nullable the way `menu_items.descriptionFr` is.
+     */
+    altTextFr: text("alt_text_fr").notNull(),
+    /** Manual order, like categories and items. Never alphabetical-by-locale. */
+    sortOrder: integer("sort_order").notNull().default(0),
+    isVisible: integer("is_visible", { mode: "boolean" }).notNull().default(true),
+    ...timestamps,
+  },
+  (table) => [index("gallery_images_sort_order_idx").on(table.sortOrder)],
 );
 
 /**
@@ -245,3 +295,4 @@ export type ProfileRow = typeof profiles.$inferSelect;
 export type SiteSettingsRow = typeof siteSettings.$inferSelect;
 export type AuditLogRow = typeof auditLogs.$inferSelect;
 export type UserRow = typeof user.$inferSelect;
+export type GalleryImageRow = typeof galleryImages.$inferSelect;

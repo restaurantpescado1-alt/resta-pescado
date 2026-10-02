@@ -1,32 +1,46 @@
+import path from "node:path";
+
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { hashPassword } from "better-auth/crypto";
 
 import { requireEnv } from "./env";
-import { applyMigrations, hasPhase1Schema } from "./migrate";
+import { applyMigrations, hasPhase1Schema, hasPhase2Schema, markMigrationApplied } from "./migrate";
+import { assertSeedIsSafe, DELETE_OPT_IN_ENV, isDestructiveResetAllowed } from "./local-db-guard";
+import { APPROVED_CATEGORIES, APPROVED_MENU, allApprovedItems } from "./approved-menu";
 import * as schema from "../src/db/schema";
-import { createPlaceholderPng, putLocalR2Object } from "./r2-local";
 
 /**
  * Local development seed.
  *
- * Creates the single owner account, one visible category, and one visible dish,
- * then places a generated placeholder image in the local R2 simulation so the
- * image pipeline has something real to serve.
+ * Creates the single owner account, the owner-approved menu, and the confirmed site
+ * settings. Everything written here is transcribed from `scripts/approved-menu.ts` or
+ * from a fact the owner stated directly; nothing is invented.
  *
- * The placeholder is a flat grey rectangle, not a photo. `docs/CONTENT_POLICY.md`
- * ranks "no image" above invented imagery, and Phase 1 only needs the plumbing to
- * work. Real photos arrive in Milestone 4.
+ * Safety: this script refuses to run outside a local Miniflare database and refuses to
+ * run under NODE_ENV=production. See `scripts/local-db-guard.ts`. Production data is
+ * changed only by migrations applied with `--remote`, which never delete rows.
  *
- * Credentials come from the environment. Nothing here is a real secret and
- * nothing here is committed.
+ * Three deliberate absences:
+ *
+ * - **No cooked-dish photographs.** Phase 1 seeded a flat grey placeholder so the R2
+ *   route had something to serve. `docs/CONTENT_POLICY.md` ranks "no image" above
+ *   invented imagery, and a grey rectangle on "Dorade" would be worse than nothing, so
+ *   `image_key` stays null for every item. The end-to-end suite uploads its own image
+ *   to exercise the R2 path.
+ * - **No gallery images.** There is no restaurant photography yet, so `gallery_images`
+ *   is left empty and `/galerie` renders an honest empty state.
+ * - **No featured dishes.** `is_featured` stays false everywhere until the owner picks
+ *   them, so nothing on the site claims the restaurant recommends a dish.
+ *
+ * Credentials come from the environment. Nothing here is a real secret and nothing
+ * here is committed.
  */
 
 const D1_STATE_DIR = ".wrangler/state/v3/d1";
 
 async function findLocalD1File(): Promise<string> {
   const { readdir } = await import("node:fs/promises");
-  const { join } = await import("node:path");
 
   const missing = new Error(
     `No local D1 state under ${D1_STATE_DIR}. Run "npm run db:migrate:local" first.`,
@@ -46,13 +60,18 @@ async function findLocalD1File(): Promise<string> {
     throw missing;
   }
 
-  const files = await readdir(join(D1_STATE_DIR, directory));
+  const files = await readdir(path.join(D1_STATE_DIR, directory));
   const sqlite = files.find((file) => file.endsWith(".sqlite"));
   if (sqlite === undefined) {
     throw new Error(`No .sqlite file found in ${D1_STATE_DIR}/${directory}.`);
   }
 
-  return join(D1_STATE_DIR, directory, sqlite);
+  /*
+   * Absolute, deliberately. `assertLocalDatabasePath` rejects a relative path because
+   * a relative path means different files depending on the working directory, so
+   * resolving here is what lets the guard prove the file is inside `.wrangler/state`.
+   */
+  return path.resolve(path.join(D1_STATE_DIR, directory, sqlite));
 }
 
 /**
@@ -73,25 +92,29 @@ const SEED_DELIVERY = {
   ordering: "Commande et livraison par téléphone au 0540559967. La livraison est payante.",
 } as const;
 
-const SEED_CATEGORY_ID = "dev-category-poissons";
-const SEED_ITEM_ID = "dev-item-dorade";
 /**
- * A fixed v4-shaped uuid so the seed is idempotent.
+ * Owner-confirmed site settings.
  *
- * It has to satisfy `R2_KEY_PATTERN` in `src/lib/validation.ts`, which the media
- * route and the price/image schemas both enforce. A readable name like
- * `dev-placeholder-dorade` would pass D1 but 404 through `/api/media`, so the
- * key is a valid uuid in every field.
+ * Every string below is a confirmed fact and nothing more. `addressFr` is
+ * deliberately `null`: the address was never confirmed, and the policy forbids
+ * printing a guess. The site renders a map link instead, which needs no address.
  */
-const SEED_IMAGE_UUID = "d0e7a1c4-8f3b-4c2a-9e5d-6b1f2a3c4d5e";
-const SEED_IMAGE_KEY = `menu/${new Date().getUTCFullYear()}/${SEED_IMAGE_UUID}.png`;
+const SEED_SETTINGS = {
+  phoneFr: "0540559967",
+  hoursFr: "Ouvert tous les jours ouvrables de 11h15 à 15h15. Fermé le vendredi.",
+  mapsUrl: "https://maps.app.goo.gl/n3cMmMpeXeLDsQtY6",
+  addressFr: null,
+  familyNoteFr: "Restaurant familial. Une chaise haute est disponible pour les enfants.",
+  heroTitleFr: "Poissons et fruits de mer, préparés à Alger.",
+  heroSubtitleFr: "Une carte courte, révisée chaque jour.",
+} as const;
 
 export async function seed(): Promise<void> {
   const ownerEmail = requireEnv("OWNER_EMAIL");
   const ownerPassword = requireEnv("OWNER_PASSWORD");
   const ownerName = process.env.OWNER_NAME ?? "Propriétaire";
 
-  const sqlitePath = await findLocalD1File();
+  const sqlitePath = assertSeedIsSafe({ sqlitePath: await findLocalD1File() });
   const native = new Database(sqlitePath);
   native.pragma("journal_mode = WAL");
 
@@ -102,8 +125,15 @@ export async function seed(): Promise<void> {
   void _db;
 
   // Only migrate when the schema is missing. `db:migrate:local` may have
-  // already run through wrangler, which keeps its own bookkeeping table.
-  if (!hasPhase1Schema(native)) {
+  // already run through wrangler, which keeps its own bookkeeping table. A
+  // Phase-1-only database still needs `0001`, so the check is for the newest
+  // schema, not for "some migration ran".
+  if (!hasPhase2Schema(native)) {
+    if (hasPhase1Schema(native)) {
+      // Phase 1 landed via wrangler, which left `__drizzle_migrations` empty.
+      // Record it so `applyMigrations` does not re-run `0000`.
+      markMigrationApplied(native, "0000_phase1_foundation");
+    }
     applyMigrations(native);
   }
 
@@ -137,16 +167,21 @@ export async function seed(): Promise<void> {
       )
       .run(userId, ownerName);
 
-    // `DO UPDATE` so re-seeding restores the confirmed delivery statements. There
-    // is no settings UI yet, so the seed is the only writer of these columns and
+    // `DO UPDATE` so re-seeding restores the confirmed facts. There is no
+    // settings UI yet, so the seed is the only writer of these columns and
     // nothing here can clobber an owner edit.
     native
       .prepare(
-        "INSERT INTO site_settings (id, restaurant_name_fr, hero_title_fr, hero_subtitle_fr, delivery_enabled, delivery_zones_text_fr, delivery_fee_text_fr, delivery_minimum_order_text_fr, delivery_hours_fr, pickup_text_fr, created_at, updated_at) VALUES ('singleton', 'Resta Pescado', ?, ?, ?, ?, ?, ?, ?, ?, unixepoch(), unixepoch()) ON CONFLICT(id) DO UPDATE SET hero_title_fr = excluded.hero_title_fr, hero_subtitle_fr = excluded.hero_subtitle_fr, delivery_enabled = excluded.delivery_enabled, delivery_zones_text_fr = excluded.delivery_zones_text_fr, delivery_fee_text_fr = excluded.delivery_fee_text_fr, delivery_minimum_order_text_fr = excluded.delivery_minimum_order_text_fr, delivery_hours_fr = excluded.delivery_hours_fr, pickup_text_fr = excluded.pickup_text_fr, updated_at = unixepoch()",
+        "INSERT INTO site_settings (id, restaurant_name_fr, phone_fr, address_fr, maps_url, hours_fr, family_note_fr, hero_title_fr, hero_subtitle_fr, delivery_enabled, delivery_zones_text_fr, delivery_fee_text_fr, delivery_minimum_order_text_fr, delivery_hours_fr, pickup_text_fr, created_at, updated_at) VALUES ('singleton', 'Resta Pescado', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch(), unixepoch()) ON CONFLICT(id) DO UPDATE SET phone_fr = excluded.phone_fr, address_fr = excluded.address_fr, maps_url = excluded.maps_url, hours_fr = excluded.hours_fr, family_note_fr = excluded.family_note_fr, hero_title_fr = excluded.hero_title_fr, hero_subtitle_fr = excluded.hero_subtitle_fr, delivery_enabled = excluded.delivery_enabled, delivery_zones_text_fr = excluded.delivery_zones_text_fr, delivery_fee_text_fr = excluded.delivery_fee_text_fr, delivery_minimum_order_text_fr = excluded.delivery_minimum_order_text_fr, delivery_hours_fr = excluded.delivery_hours_fr, pickup_text_fr = excluded.pickup_text_fr, updated_at = unixepoch()",
       )
       .run(
-        "Poissons et fruits de mer, préparés à Alger.",
-        "Une carte courte, révisée chaque jour.",
+        SEED_SETTINGS.phoneFr,
+        SEED_SETTINGS.addressFr,
+        SEED_SETTINGS.mapsUrl,
+        SEED_SETTINGS.hoursFr,
+        SEED_SETTINGS.familyNoteFr,
+        SEED_SETTINGS.heroTitleFr,
+        SEED_SETTINGS.heroSubtitleFr,
         SEED_DELIVERY.enabled ? 1 : 0,
         SEED_DELIVERY.zones,
         SEED_DELIVERY.fee,
@@ -155,21 +190,64 @@ export async function seed(): Promise<void> {
         SEED_DELIVERY.ordering,
       );
 
-    native
-      .prepare(
-        "INSERT INTO menu_categories (id, name_fr, slug, sort_order, is_visible, created_at, updated_at) VALUES (?, 'Poissons', 'poissons', 1, 1, unixepoch(), unixepoch()) ON CONFLICT(id) DO NOTHING",
-      )
-      .run(SEED_CATEGORY_ID);
+    // Categories, in the owner's order.
+    const insertCategory = native.prepare(
+      "INSERT INTO menu_categories (id, name_fr, slug, sort_order, is_visible, created_at, updated_at) VALUES (?, ?, ?, ?, 1, unixepoch(), unixepoch()) ON CONFLICT(id) DO UPDATE SET name_fr = excluded.name_fr, slug = excluded.slug, sort_order = excluded.sort_order, is_visible = 1, updated_at = unixepoch()",
+    );
+    for (const [index, category] of APPROVED_CATEGORIES.entries()) {
+      insertCategory.run(category.id, category.nameFr, category.slug, index + 1);
+    }
 
-    // `DO UPDATE` rather than `DO NOTHING` on the mutable fields, so re-running
-    // the seed resets the price and image. The end-to-end suite asserts against
-    // the seeded 900 DA dish, and without this a previous run that changed the
-    // price would leak into the next one.
-    native
-      .prepare(
-        "INSERT INTO menu_items (id, category_id, name_fr, description_fr, price_da, image_key, is_featured, is_visible, sort_order, created_at, updated_at) VALUES (?, ?, 'Dorade grillée', ?, 900, ?, 1, 1, 1, unixepoch(), unixepoch()) ON CONFLICT(id) DO UPDATE SET price_da = excluded.price_da, image_key = excluded.image_key, is_visible = excluded.is_visible, updated_at = unixepoch()",
-      )
-      .run(SEED_ITEM_ID, SEED_CATEGORY_ID, "Entière, distinguishable.", SEED_IMAGE_KEY);
+    // Items. `DO UPDATE` on every mutable field so a re-seed resets prices and fish
+    // references to the approved values. `description_fr`, `image_key` and
+    // `is_featured` are deliberately reset: the seed must not inherit an invented
+    // description, never seeds a photo, and never claims the restaurant recommends a
+    // dish. Featured selection belongs to the owner via the dashboard.
+    const insertItem = native.prepare(
+      "INSERT INTO menu_items (id, category_id, name_fr, description_fr, price_da, image_key, fish_reference_slug, is_featured, is_visible, sort_order, created_at, updated_at) VALUES (?, ?, ?, NULL, ?, NULL, ?, 0, 1, ?, unixepoch(), unixepoch()) ON CONFLICT(id) DO UPDATE SET category_id = excluded.category_id, name_fr = excluded.name_fr, description_fr = NULL, price_da = excluded.price_da, image_key = NULL, fish_reference_slug = excluded.fish_reference_slug, is_featured = 0, is_visible = 1, sort_order = excluded.sort_order, updated_at = unixepoch()",
+    );
+    for (const group of APPROVED_MENU) {
+      for (const [index, item] of group.items.entries()) {
+        insertItem.run(
+          item.id,
+          group.categoryId,
+          item.nameFr,
+          item.priceDa,
+          item.fishReferenceSlug ?? null,
+          index + 1,
+        );
+      }
+    }
+
+    // Remove anything the owner has not approved.
+    //
+    // This is a *local reset* convenience, gated behind SEED_ALLOW_DELETE=1, because
+    // deleting a dish is exactly what must never happen to a real database. In
+    // production the equivalent action is the owner using the dashboard, which is
+    // deliberate and audited; migrations applied with `--remote` never delete rows.
+    //
+    // Upserting alone is not enough locally: a dish or category that used to exist, or
+    // a row left by an earlier seed, would survive and then be served on the public
+    // menu. Opting in makes the approved menu the whole truth for a dev database.
+    if (isDestructiveResetAllowed()) {
+      const approvedItemIds = allApprovedItems().map((item) => item.id);
+      const approvedCategoryIds = APPROVED_CATEGORIES.map((category) => category.id);
+      const { changes: removedItems } = native
+        .prepare(
+          `DELETE FROM menu_items WHERE id NOT IN (${approvedItemIds.map(() => "?").join(",")})`,
+        )
+        .run(...approvedItemIds);
+      // Deleting a category cascades to its items via the foreign key.
+      const { changes: removedCategories } = native
+        .prepare(
+          `DELETE FROM menu_categories WHERE id NOT IN (${approvedCategoryIds.map(() => "?").join(",")})`,
+        )
+        .run(...approvedCategoryIds);
+
+      if (removedItems > 0 || removedCategories > 0) {
+        console.log(`  removed   : ${removedItems} unapproved item(s), ${removedCategories} unapproved category(ies)`);
+      }
+    }
 
     native.exec("COMMIT");
   } catch (error) {
@@ -178,22 +256,39 @@ export async function seed(): Promise<void> {
     throw error;
   }
 
-  await putLocalR2Object(SEED_IMAGE_KEY, createPlaceholderPng(320, 240), "image/png");
-
   native.close();
 
+  const categoryCount = APPROVED_CATEGORIES.length;
+const allItems = APPROVED_MENU.flatMap((group) => group.items);
+const illustrationCount = allItems.filter((item) => item.fishReferenceSlug !== undefined).length;
+
   console.log("Local seed complete:");
-  console.log(`  owner    : ${ownerEmail}`);
-  console.log(`  category : Poissons (${SEED_CATEGORY_ID})`);
-  console.log(`  dish     : Dorade grillée, 900 DA (${SEED_ITEM_ID})`);
-  console.log(`  image    : ${SEED_IMAGE_KEY}`);
-  console.log(`  database : ${sqlitePath}`);
+  console.log(`  owner      : ${ownerEmail}`);
+  console.log(`  database   : ${sqlitePath}`);
+  console.log(`  categories : ${categoryCount}`);
+  console.log(`  items      : ${allItems.length}`);
+  console.log(`  fish refs  : ${illustrationCount} items with a reference illustration`);
+  console.log(`  featured   : 0 (owner selects these from the dashboard)`);
+  console.log(`  gallery    : 0 images (empty state on /galerie)`);
+  console.log(`  photos     : 0 seeded (image_key null on every item)`);
+  console.log(
+    `  stale rows : ${isDestructiveResetAllowed() ? "removal enabled (SEED_ALLOW_DELETE=1)" : "left untouched (set SEED_ALLOW_DELETE=1 to reset)"}`,
+  );
 }
 
 const invokedDirectly =
   process.argv[1]?.replace(/\\/g, "/").endsWith("scripts/seed-local.ts") === true;
 
 if (invokedDirectly) {
+  // `--reset` opts in to deleting menu rows that are not in the approved list. It is
+  // a flag rather than an inline env assignment so `npm run db:reset:local` works the
+  // same on Windows and POSIX without a `cross-env` dependency. The guard in
+  // `scripts/local-db-guard.ts` has already established this is a local database by
+  // the time any deletion is possible.
+  if (process.argv.includes("--reset")) {
+    process.env[DELETE_OPT_IN_ENV] = "1";
+  }
+
   void (async () => {
     const { readEnvFile } = await import("./env");
     readEnvFile();

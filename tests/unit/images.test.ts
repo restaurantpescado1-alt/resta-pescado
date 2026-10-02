@@ -7,15 +7,18 @@ import {
   MIN_IMAGE_DIMENSION,
   buildR2Key,
   detectMimeType,
+  isCompleteImage,
   readImageDimensions,
   validateImageUpload,
 } from "../../src/lib/images";
 import {
-  createJpeg,
   createPng,
+  createTruncatedJpeg,
+  createTruncatedWebp,
   createWebp,
   createWebpExtended,
   createWebpLossy,
+  encodeImage,
 } from "../helpers/image-fixtures";
 
 /**
@@ -34,8 +37,11 @@ describe("image validation", () => {
     }
   });
 
-  it("accepts a valid JPEG", () => {
-    const result = validateImageUpload("image/jpeg", createJpeg({ width: 800, height: 600 }));
+  it("accepts a valid JPEG", async () => {
+    const result = validateImageUpload(
+      "image/jpeg",
+      await encodeImage("jpeg", { width: 800, height: 600 }),
+    );
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.extension).toBe("jpg");
@@ -43,8 +49,11 @@ describe("image validation", () => {
     }
   });
 
-  it("accepts a valid WebP", () => {
-    const result = validateImageUpload("image/webp", createWebp({ width: 400, height: 400 }));
+  it("accepts a valid WebP", async () => {
+    const result = validateImageUpload(
+      "image/webp",
+      await encodeImage("webp", { width: 400, height: 400 }),
+    );
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.extension).toBe("webp");
@@ -142,7 +151,7 @@ describe("image validation", () => {
 describe("signature detection", () => {
   it("identifies the three supported formats", () => {
     expect(detectMimeType(createPng({ width: 10, height: 10 }))).toBe("image/png");
-    expect(detectMimeType(createJpeg({ width: 10, height: 10 }))).toBe("image/jpeg");
+    expect(detectMimeType(createTruncatedJpeg({ width: 10, height: 10 }))).toBe("image/jpeg");
     expect(detectMimeType(createWebp({ width: 10, height: 10 }))).toBe("image/webp");
   });
 
@@ -182,14 +191,87 @@ describe("dimension parsing", () => {
     expect(readImageDimensions(webp, "image/webp")).toEqual({ width: 1200, height: 900 });
   });
 
-  it("accepts every WebP variant through the full gate", () => {
+  /**
+   * The three WebP container shapes are all recognised and their dimensions read.
+   *
+   * Deliberately not run through the full gate: `createWebpLossy` and
+   * `createWebpExtended` are header-only fixtures, so they are incomplete by
+   * construction. Probing them with the full gate would be asserting that a truncated
+   * file is a valid upload, which is the opposite of what the completeness check is for.
+   */
+  it("recognises every WebP container shape", () => {
     for (const bytes of [
       createWebp({ width: 400, height: 400 }),
       createWebpLossy({ width: 400, height: 400 }),
       createWebpExtended({ width: 400, height: 400 }),
     ]) {
-      const result = validateImageUpload("image/webp", bytes);
-      expect(result.ok, "WebP variant should be accepted").toBe(true);
+      expect(detectMimeType(bytes)).toBe("image/webp");
+      expect(readImageDimensions(bytes, "image/webp")).toEqual({ width: 400, height: 400 });
+    }
+  });
+
+  it("accepts a real WebP of each container shape the encoder produces", async () => {
+    const result = validateImageUpload(
+      "image/webp",
+      await encodeImage("webp", { width: 400, height: 400 }),
+    );
+    expect(result.ok).toBe(true);
+  });
+});
+
+/**
+ * A file that stops after its header passes every check that reads the front of the
+ * file: the magic number matches, and the dimension fields parse.
+ *
+ * Accepting one is not cosmetic. There is no control for removing a dish photo, so a
+ * truncated upload cannot be undone from the dashboard and would render as a broken
+ * image on the live menu.
+ */
+describe("completeness", () => {
+  it("accepts a whole PNG", async () => {
+    expect(isCompleteImage(await encodeImage("png", { width: 200, height: 200 }), "image/png")).toBe(
+      true,
+    );
+  });
+
+  it("accepts a whole JPEG", async () => {
+    expect(
+      isCompleteImage(await encodeImage("jpeg", { width: 200, height: 200 }), "image/jpeg"),
+    ).toBe(true);
+  });
+
+  it("accepts a whole WebP", async () => {
+    expect(
+      isCompleteImage(await encodeImage("webp", { width: 200, height: 200 }), "image/webp"),
+    ).toBe(true);
+  });
+
+  it("rejects a JPEG that stops after its header", () => {
+    expect(isCompleteImage(createTruncatedJpeg({ width: 720, height: 540 }), "image/jpeg")).toBe(false);
+  });
+
+  it("rejects a WebP that stops after its header", () => {
+    expect(isCompleteImage(createTruncatedWebp({ width: 640, height: 640 }), "image/webp")).toBe(false);
+  });
+
+  it("rejects a PNG whose IEND chunk is missing", async () => {
+    const png = createPng({ width: 200, height: 200 });
+    const withoutEnd = png.subarray(0, png.byteLength - 12);
+    expect(isCompleteImage(withoutEnd, "image/png")).toBe(false);
+  });
+
+  it("rejects a WebP whose declared RIFF length does not match the file", async () => {
+    const webp = await encodeImage("webp", { width: 200, height: 200 });
+    const padded = new Uint8Array(webp.byteLength + 4);
+    padded.set(webp, 0);
+    expect(isCompleteImage(padded, "image/webp")).toBe(false);
+  });
+
+  it("rejects a truncated file through the full gate, not just the helper", () => {
+    const result = validateImageUpload("image/jpeg", createTruncatedJpeg({ width: 720, height: 540 }));
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toMatch(/incomplète|corrompue/i);
     }
   });
 });

@@ -129,8 +129,19 @@ export function createPng({ width, height, colour = [0x8a, 0x9a, 0xa5] }: PngOpt
   return out;
 }
 
-/** A minimal baseline JPEG: SOI, APP0/JFIF, a SOF0 frame, and EOI. */
-export function createJpeg({ width, height }: Omit<PngOptions, "colour">): Uint8Array {
+/**
+ * A truncated baseline JPEG: SOI and APP0/JFIF and the start of a SOF0 frame, then
+ * nothing.
+ *
+ * The missing part is the EOI marker at the end. Signature sniffing and dimension
+ * parsing both succeed, because the frame header carries the dimensions and nothing has
+ * contradicted them yet. That is exactly the shape of an interrupted upload, and it is
+ * what `isCompleteImage` in `src/lib/images.ts` is checked against.
+ *
+ * There is no scan data either, so no browser can display it. Tests that assert an upload
+ * *succeeds* use `encodeImage` instead, which produces a real file through Sharp.
+ */
+export function createTruncatedJpeg({ width, height }: Omit<PngOptions, "colour">): Uint8Array {
   const out: number[] = [0xff, 0xd8];
 
   // APP0 / JFIF
@@ -143,12 +154,31 @@ export function createJpeg({ width, height }: Omit<PngOptions, "colour">): Uint8
   out.push((width >> 8) & 0xff, width & 0xff);
   out.push(0x01, 0x01, 0x11, 0x00);
 
-  out.push(0xff, 0xd9);
-
+  // No scan data and no EOI marker. The transfer stopped here.
   return new Uint8Array(out);
 }
 
-/** A minimal lossy WebP (VP8): frame tag, sync code, and 14-bit dimensions. */
+/**
+ * A truncated lossless WebP: the VP8L header from `createWebp`, with the RIFF header still
+ * declaring the length the finished file would have had.
+ *
+ * So the container claims more bytes than the file contains. `isCompleteImage` compares
+ * the two and rejects it, which is the WebP side of the same truncation case as
+ * `createTruncatedJpeg`.
+ */
+export function createTruncatedWebp({ width, height }: Omit<PngOptions, "colour">): Uint8Array {
+  const out = createWebp({ width, height });
+
+  // Pretend 64 bytes of image payload are still on their way.
+  new DataView(out.buffer).setUint32(4, out.byteLength - 8 + 64, true);
+
+  return out;
+}
+
+/**
+ * A lossy WebP (VP8) header: frame tag, sync code, and 14-bit dimensions, with no frame
+ * payload. Used to prove the container shape is recognised and its dimensions parsed.
+ */
 export function createWebpLossy({ width, height }: Omit<PngOptions, "colour">): Uint8Array {
   const total = 30;
   const out = new Uint8Array(total);
@@ -211,7 +241,45 @@ export function createWebpExtended({ width, height }: Omit<PngOptions, "colour">
   return out;
 }
 
-/** A minimal lossless WebP (VP8L): signature plus a 1x1-style header. */
+/**
+ * A real, decodable file in `format`, produced by Sharp.
+ *
+ * The hand-rolled fixtures above are deliberately incomplete, which is the right shape
+ * for testing rejection but the wrong shape for testing acceptance: a stored image that
+ * no browser can render is precisely the failure this suite exists to prevent. Anything
+ * asserting that an upload *succeeds* goes through here.
+ *
+ * The colour is a flat placeholder, not a photograph, per `docs/CONTENT_POLICY.md`.
+ */
+export async function encodeImage(
+  format: "jpeg" | "png" | "webp",
+  { width, height, colour = [0x22, 0x66, 0x88] }: PngOptions,
+): Promise<Buffer> {
+  const { default: sharp } = await import("sharp");
+  const { r, g, b } = {
+    r: colour[0],
+    g: colour[1],
+    b: colour[2],
+  };
+
+  return sharp({
+    create: {
+      width,
+      height,
+      channels: 3,
+      background: { r, g, b },
+    },
+  })
+    .toFormat(format)
+    .toBuffer();
+}
+
+/**
+ * A lossless WebP (VP8L) header: signature plus the packed dimensions, with no image data.
+ *
+ * As with the other hand-rolled WebP builders, this exists to exercise recognition and
+ * dimension parsing, not display. Use `encodeImage` when a test needs a real file.
+ */
 export function createWebp({ width, height }: Omit<PngOptions, "colour">): Uint8Array {
   const total = 30;
   const out = new Uint8Array(total);

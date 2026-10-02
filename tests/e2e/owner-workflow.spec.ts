@@ -3,6 +3,9 @@ import { expect, test } from "@playwright/test";
 import { createPng } from "../helpers/image-fixtures";
 import {
   SEEDED_ITEM_ID,
+  SEEDED_ITEM_NAME,
+  SEEDED_PRICE_DA,
+  UPLOAD_TEST_ITEM_ID,
   goToAdminMenu,
   itemRow,
   loginAsOwner,
@@ -44,7 +47,7 @@ test.describe("owner workflow", () => {
     await goToAdminMenu(page);
 
     await expect(itemRow(page)).toBeVisible();
-    await expect(itemRow(page).getByText("Dorade grillée")).toBeVisible();
+    await expect(itemRow(page).getByText(SEEDED_ITEM_NAME)).toBeVisible();
   });
 
   test("signing out returns the owner to the login screen", async ({ page, context }) => {
@@ -59,13 +62,13 @@ test.describe("price update", () => {
     await goToAdminMenu(page);
 
     const row = itemRow(page);
-    await expect(row.getByTestId("current-price")).toContainText("900");
+    await expect(row.getByTestId("current-price")).toHaveText(/1\s*200\s*DA/);
 
     const priceInput = row.locator('input[name="priceDa"]');
     await priceInput.fill("1250");
     await row.getByRole("button", { name: "Enregistrer" }).click();
 
-    await expect(row.getByTestId("current-price")).toContainText("1 250");
+    await expect(row.getByTestId("current-price")).toHaveText(/1\s*250\s*DA/);
 
     // Public, without a session.
     const publicPrice = await readPublicPrice(page);
@@ -73,9 +76,9 @@ test.describe("price update", () => {
 
     // Put it back so the suite is repeatable.
     await goToAdminMenu(page);
-    await itemRow(page).locator('input[name="priceDa"]').fill("900");
+    await itemRow(page).locator('input[name="priceDa"]').fill(String(SEEDED_PRICE_DA));
     await itemRow(page).getByRole("button", { name: "Enregistrer" }).click();
-    await expect(itemRow(page).getByTestId("current-price")).toContainText("900");
+    await expect(itemRow(page).getByTestId("current-price")).toHaveText(/1\s*200\s*DA/);
   });
 
   for (const [label, value] of [
@@ -98,7 +101,7 @@ test.describe("price update", () => {
       await expect(page.getByTestId("action-message")).toHaveAttribute("class", /text-danger/);
 
       await expect(row.getByTestId("current-price")).toHaveText(before);
-      expect(await readPublicPrice(page)).toBe("900");
+      expect(await readPublicPrice(page)).toBe(String(SEEDED_PRICE_DA));
     });
   }
 
@@ -117,6 +120,53 @@ test.describe("price update", () => {
   });
 });
 
+/**
+ * The owner's home page preview choice.
+ *
+ * Nothing seeds this on, so the test has to set it and then clear it again. Unlike an
+ * uploaded photo, this flag is reversible, which is why it can live in the owner spec
+ * without leaking into the public specs that run afterwards.
+ */
+test.describe("featured selection", () => {
+  test("the switch reflects the seeded state, which is off for every dish", async ({ page }) => {
+    await goToAdminMenu(page);
+
+    const row = itemRow(page);
+    await expect(row.getByTestId("featured-toggle")).toBeVisible();
+    await expect(row.getByTestId("featured-toggle")).toHaveAttribute("aria-checked", "false");
+  });
+
+  test("featuring a dish makes it lead the home preview and is audited", async ({ page }) => {
+    await goToAdminMenu(page);
+
+    const row = itemRow(page);
+    await row.getByTestId("featured-toggle").click();
+    await expect(page.getByTestId("action-message")).toHaveAttribute("class", /text-ok/);
+    await expect(row.getByTestId("featured-toggle")).toHaveAttribute("aria-checked", "true");
+
+    // Public, readable with or without the owner session: the featured dish is now the
+    // whole preview. The fish guide further down the page carries no `data-item-id`, so
+    // this counts the preview and nothing else.
+    await page.goto("/");
+    const preview = page.locator("[data-item-id]");
+    await expect(preview).toHaveCount(1);
+    await expect(preview.first()).toHaveAttribute("data-item-id", SEEDED_ITEM_ID);
+
+    await page.goto("/admin");
+    const audit = page.getByTestId("audit-list");
+    await expect(audit).toContainText("Mise en avant modifiée");
+    await expect(audit).toContainText(SEEDED_ITEM_ID);
+
+    // Clear it so the fallback preview returns and later specs see the seeded state.
+    await goToAdminMenu(page);
+    await itemRow(page).getByTestId("featured-toggle").click();
+    await expect(itemRow(page).getByTestId("featured-toggle")).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
+  });
+});
+
 test.describe("audit log", () => {
   test("records both the price and the image actions", async ({ page }) => {
     await goToAdminMenu(page);
@@ -124,14 +174,25 @@ test.describe("audit log", () => {
     const row = itemRow(page);
     await row.locator('input[name="priceDa"]').fill("1100");
     await row.getByRole("button", { name: "Enregistrer" }).click();
-    await expect(row.getByTestId("current-price")).toContainText("1 100");
+    await expect(row.getByTestId("current-price")).toHaveText(/1\s*100\s*DA/);
 
-    await row.locator('input[type="file"]').setInputFiles({
+    await itemRow(page, UPLOAD_TEST_ITEM_ID)
+      .locator('input[type="file"]')
+      .setInputFiles({
       name: "replacement.png",
       mimeType: "image/png",
       buffer: Buffer.from(createPng({ width: 640, height: 480 })),
     });
-    await row.getByRole("button", { name: "Téléverser" }).click();
+    await itemRow(page, UPLOAD_TEST_ITEM_ID)
+      .locator('input[type="file"]')
+      .setInputFiles({
+        name: "replacement.png",
+        mimeType: "image/png",
+        buffer: Buffer.from(createPng({ width: 640, height: 480 })),
+      });
+    await itemRow(page, UPLOAD_TEST_ITEM_ID)
+      .getByRole("button", { name: "Téléverser" })
+      .click();
     await expect(page.getByTestId("action-message")).toHaveAttribute("class", /text-ok/);
 
     await page.goto("/admin");
@@ -142,10 +203,10 @@ test.describe("audit log", () => {
     await expect(audit).toContainText(SEEDED_ITEM_ID);
 
     // Put the price back. The public-menu spec runs afterwards and asserts the
-    // seeded 900 DA, so leaving 1100 here would make the suite order-dependent.
+    // seeded price, so leaving 1100 here would make the suite order-dependent.
     await goToAdminMenu(page);
-    await itemRow(page).locator('input[name="priceDa"]').fill("900");
+    await itemRow(page).locator('input[name="priceDa"]').fill(String(SEEDED_PRICE_DA));
     await itemRow(page).getByRole("button", { name: "Enregistrer" }).click();
-    await expect(itemRow(page).getByTestId("current-price")).toContainText("900");
+    await expect(itemRow(page).getByTestId("current-price")).toHaveText(/1\s*200\s*DA/);
   });
 });

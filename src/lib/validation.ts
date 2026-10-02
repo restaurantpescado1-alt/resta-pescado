@@ -23,6 +23,19 @@ export const updatePriceInputSchema = z.object({
 
 export type UpdatePriceInput = z.infer<typeof updatePriceInputSchema>;
 
+/**
+ * Toggling whether the owner recommends a dish.
+ *
+ * The value is a real boolean in the schema rather than an optional field, so a form
+ * that forgets to send it is rejected instead of silently clearing the flag.
+ */
+export const updateFeaturedInputSchema = z.object({
+  menuItemId: z.string().min(1, "Identifiant de plat manquant."),
+  isFeatured: z.boolean(),
+});
+
+export type UpdateFeaturedInput = z.infer<typeof updateFeaturedInputSchema>;
+
 /** R2 object keys are `menu/{year}/{uuid}.{ext}` per docs/ARCHITECTURE.md. */
 export const R2_KEY_PATTERN = /^menu\/\d{4}\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(jpg|png|webp)$/;
 

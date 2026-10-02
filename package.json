@@ -21,6 +21,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate:local": "wrangler d1 migrations apply resta-pescado-db --local",
     "db:seed:local": "tsx scripts/seed-local.ts",
+    "db:reset:local": "tsx scripts/seed-local.ts --reset",
+    "images:fish": "tsx scripts/process-fish-images.ts",
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install chromium"
   },
@@ -45,6 +47,7 @@
     "drizzle-kit": "0.31.11",
     "eslint": "9.39.5",
     "eslint-config-next": "16.3.7",
+    "sharp": "0.35.5",
     "tailwindcss": "4.3.3",
     "tsx": "4.23.15",
     "typescript": "5.9.3",

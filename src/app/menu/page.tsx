@@ -5,11 +5,16 @@ import { ServiceUnavailable } from "@/components/service-unavailable";
 import { getDb } from "@/db";
 import { getPublicMenu, getSiteSettings } from "@/db/repositories/menu";
 import type { MenuCategoryRow, MenuItemRow, SiteSettingsRow } from "@/db/schema";
+import { telHref } from "@/lib/public-site";
 
 export const dynamic = "force-dynamic";
 
 type MenuData =
-  | { status: "ok"; categories: Array<MenuCategoryRow & { items: MenuItemRow[] }>; settings: SiteSettingsRow | null }
+  | {
+      status: "ok";
+      categories: Array<MenuCategoryRow & { items: MenuItemRow[] }>;
+      settings: SiteSettingsRow | null;
+    }
   | { status: "error"; detail: string };
 
 /**
@@ -28,6 +33,11 @@ async function loadMenu(): Promise<MenuData> {
   }
 }
 
+export const metadata = {
+  title: "La carte",
+  description: "Les plats du restaurant, avec les prix du jour.",
+};
+
 export default async function MenuPage() {
   const data = await loadMenu();
 
@@ -37,24 +47,62 @@ export default async function MenuPage() {
 
   if (data.categories.length === 0) {
     return (
-      <section className="rounded border border-line bg-white/60 p-8 text-center" data-testid="menu-empty">
-        <h1 className="text-xl font-semibold">La carte arrive bientôt</h1>
-        <p className="mt-2 text-ink-soft">Aucun plat n&apos;est encore disponible.</p>
+      <section className="rounded-2xl border border-dashed border-line-strong p-10 text-center" data-testid="menu-empty">
+        <h1 className="text-xl font-bold">La carte arrive bientôt</h1>
+        <p className="mt-2 text-ink/75">Aucun plat n&apos;est encore disponible.</p>
+        <p className="mt-4 text-sm text-ink/75">
+          Merci de nous appeler pour connaître les disponibilités du jour.
+        </p>
       </section>
     );
   }
 
+  const total = data.categories.reduce((sum, category) => sum + category.items.length, 0);
+
   return (
     <div data-testid="menu">
-      <h1 className="text-2xl font-semibold tracking-tight">La carte</h1>
-      {data.settings?.hoursFr ? <p className="mt-1 text-sm text-ink-soft">{data.settings.hoursFr}</p> : null}
+      <header className="pb-2">
+        <h1 className="text-3xl font-bold tracking-tight">La carte</h1>
+        <p className="mt-2 max-w-prose text-ink/75">
+          {total} plats, mis à jour par le restaurant. Les prix sont en dinars algériens.
+        </p>
+        {data.settings?.hoursFr ? (
+          <p className="mt-1 text-sm text-ink/70">{data.settings.hoursFr}</p>
+        ) : null}
+      </header>
 
-      <div className="mt-6 space-y-8">
+      <nav aria-label="Catégories" className="mt-6 flex flex-wrap gap-2">
         {data.categories.map((category) => (
-          <section key={category.id} data-testid="menu-category" data-slug={category.slug}>
-            <h2 className="border-b-2 border-sea pb-2 text-lg font-semibold">{category.nameFr}</h2>
+          <a
+            key={category.id}
+            href={`#${category.slug}`}
+            className="rounded-full border border-line-strong px-3 py-1.5 text-sm font-medium text-marine transition-colors hover:bg-marine hover:text-on-ocean"
+          >
+            {category.nameFr}
+          </a>
+        ))}
+      </nav>
+
+      <div className="mt-10 space-y-12">
+        {data.categories.map((category) => (
+          <section
+            key={category.id}
+            id={category.slug}
+            data-testid="menu-category"
+            data-slug={category.slug}
+            aria-labelledby={`${category.slug}-titre`}
+            className="scroll-mt-32"
+          >
+            <h2
+              id={`${category.slug}-titre`}
+              className="border-b-2 border-bright pb-2 text-xl font-bold"
+            >
+              {category.nameFr}
+            </h2>
             {category.items.length === 0 ? (
-              <p className="py-4 text-sm text-ink-soft">Aucun plat dans cette catégorie pour le moment.</p>
+              <p className="py-4 text-sm text-ink/70">
+                Aucun plat dans cette catégorie pour le moment.
+              </p>
             ) : (
               <ul>
                 {category.items.map((item) => (
@@ -66,8 +114,28 @@ export default async function MenuPage() {
         ))}
       </div>
 
+      {/*
+        Ordering is by phone. There is no cart in this phase, so the page ends with the
+        action that is actually available.
+      */}
+      {data.settings?.phoneFr ? (
+        <section className="mt-12 rounded-2xl bg-ocean p-8 text-center text-on-ocean">
+          <h2 className="text-xl font-bold">Commander par téléphone</h2>
+          <p className="mt-2 text-on-ocean-soft">
+            Pour commander ou réserver une table, appelez-nous.
+          </p>
+          <a
+            href={telHref(data.settings.phoneFr)}
+            className="mt-4 inline-block rounded-full bg-accent px-6 py-3 text-lg font-bold text-ink"
+            data-testid="menu-phone"
+          >
+            {data.settings.phoneFr}
+          </a>
+        </section>
+      ) : null}
+
       <p className="mt-8 text-sm">
-        <Link href="/" className="underline underline-offset-4">
+        <Link href="/" className="text-marine underline underline-offset-4">
           Retour à l&apos;accueil
         </Link>
       </p>

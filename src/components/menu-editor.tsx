@@ -3,7 +3,11 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import { updateDishPriceAction, replaceDishImageAction } from "@/app/admin/actions";
+import {
+  replaceDishImageAction,
+  setDishFeaturedAction,
+  updateDishPriceAction,
+} from "@/app/admin/actions";
 import type { MenuCategoryRow, MenuItemRow } from "@/db/schema";
 import type { ActionResult } from "@/lib/action-result";
 import { formatPrice, mediaUrl } from "@/lib/format";
@@ -29,10 +33,10 @@ export function MenuEditor({
     <div data-testid="menu-editor">
       {categories.map((category) => (
         <section key={category.id} className="mt-8" data-testid="editor-category" data-slug={category.slug}>
-          <h2 className="border-b-2 border-sea pb-2 text-lg font-semibold">{category.nameFr}</h2>
+          <h2 className="border-b-2 border-bright pb-2 text-lg font-semibold">{category.nameFr}</h2>
 
           {category.items.length === 0 ? (
-            <p className="py-4 text-sm text-ink-soft">Aucun plat.</p>
+            <p className="py-4 text-sm text-ink/70">Aucun plat.</p>
           ) : (
             <ul className="divide-y divide-line">
               {category.items.map((item) => (
@@ -134,17 +138,54 @@ function DishEditorRow({
     });
   }
 
+  function submitFeatured() {
+    setBusyItemId(item.id);
+    setMessage(null);
+
+    startTransition(async () => {
+      const result = await setDishFeaturedAction({
+        menuItemId: item.id,
+        isFeatured: !item.isFeatured,
+      });
+      setMessage(result);
+      setBusyItemId(null);
+      if (result.ok) {
+        routerRefresh();
+      }
+    });
+  }
+
   return (
     <li className="py-4" data-testid="editor-item" data-item-id={item.id}>
       <div className="flex flex-col gap-4 sm:flex-row">
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline justify-between gap-3">
             <h3 className="font-semibold">{item.nameFr}</h3>
-            <p className="whitespace-nowrap text-sm text-ink-soft" data-testid="current-price">
+            <p className="whitespace-nowrap text-sm text-ink/70" data-testid="current-price">
               {formatPrice(item.priceDa)}
             </p>
           </div>
-          {item.descriptionFr ? <p className="mt-1 text-sm text-ink-soft">{item.descriptionFr}</p> : null}
+          {item.descriptionFr ? <p className="mt-1 text-sm text-ink/70">{item.descriptionFr}</p> : null}
+
+          {/* The owner decides what the home page leads with. It starts unset on every
+              seeded dish, and the public card never carries a badge either way, so this
+              only changes which dishes appear in the preview. */}
+          <div className="mt-2 flex items-center gap-3">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={item.isFeatured}
+              disabled={isPending}
+              onClick={submitFeatured}
+              data-testid="featured-toggle"
+              className="rounded border border-line bg-white/60 px-2 py-1 text-xs font-medium text-marine transition-colors hover:bg-white disabled:opacity-60"
+            >
+              {item.isFeatured ? "Mis en avant" : "Mettre en avant"}
+            </button>
+            <p className="text-xs text-ink/70">
+              Le plat apparaîtra en premier sur la page d&apos;accueil.
+            </p>
+          </div>
         </div>
 
         {item.imageKey ? (
@@ -177,7 +218,7 @@ function DishEditorRow({
             <button
               type="submit"
               disabled={isPending}
-              className="rounded bg-sea px-3 py-2 text-sm font-semibold text-sand transition-colors hover:bg-sea-deep disabled:opacity-60"
+              className="rounded bg-marine px-3 py-2 text-sm font-semibold text-on-ocean transition-colors hover:bg-ocean disabled:opacity-60"
             >
               {isBusy ? "…" : "Enregistrer"}
             </button>
@@ -201,7 +242,7 @@ function DishEditorRow({
             <button
               type="submit"
               disabled={isPending}
-              className="rounded border border-sea px-3 py-2 text-sm font-semibold text-sea transition-colors hover:bg-sand disabled:opacity-60"
+              className="rounded border border-bright px-3 py-2 text-sm font-semibold text-marine transition-colors hover:bg-warm disabled:opacity-60"
             >
               {isBusy ? "…" : "Téléverser"}
             </button>

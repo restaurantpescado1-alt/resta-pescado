@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 const ACTION_LABELS: Record<string, string> = {
   "menu_item.price_updated": "Prix mis à jour",
   "menu_item.image_replaced": "Image remplacée",
+  "menu_item.featured_updated": "Mise en avant modifiée",
   "auth.login_success": "Connexion réussie",
   "auth.login_failed": "Échec de connexion",
 };
