@@ -1,0 +1,138 @@
+{
+  "$comment": [
+    "Reconciliation record for the curated gallery photographs. This file is",
+    "documentation, not runtime: nothing in the application reads it. The runtime",
+    "manifest is src/lib/gallery-images.ts, which this file was reconciled against.",
+    "",
+    "Reconciled against the files actually present in public/images/gallery/.",
+    "The previous manifest was stale: it described eight WebP derivatives that no",
+    "longer exist, declared dimensions that matched no file, and referenced a",
+    "wooden-ship image that is not in the repository at all."
+  ],
+  "generatedFrom": "inspection of public/images/gallery/ on phase-2 review",
+  "runtimeManifest": "src/lib/gallery-images.ts",
+  "processingScript": "npm run images:gallery",
+  "published": [
+    {
+      "slug": "restaurant-dining-room",
+      "source": "gallery/restaurant-dining-room.png",
+      "served": "gallery/webp/restaurant-dining-room.webp",
+      "sourceWidth": 1448,
+      "sourceHeight": 1086,
+      "servedWidth": 1200,
+      "servedHeight": 900,
+      "sourceBytes": 2276758,
+      "servedBytes": 137466,
+      "alt_fr": "La salle du restaurant Resta Pescado, avec les tables dressées pour le service.",
+      "provenance": "unverified",
+      "note": "Chosen over restaurant-dining-room.jpg. See rejected[0]."
+    },
+    {
+      "slug": "marine-decor-plants",
+      "source": "gallery/marine-decor-plants.png",
+      "served": "gallery/webp/marine-decor-plants.webp",
+      "sourceWidth": 1448,
+      "sourceHeight": 1086,
+      "servedWidth": 1200,
+      "servedHeight": 900,
+      "sourceBytes": 2291972,
+      "servedBytes": 127254,
+      "alt_fr": "La décoration intérieure du restaurant, dans un style maritime avec des plantes.",
+      "provenance": "unverified"
+    },
+    {
+      "slug": "full-seafood-display",
+      "source": "gallery/full-seafood-display.png",
+      "served": "gallery/webp/full-seafood-display.webp",
+      "sourceWidth": 1448,
+      "sourceHeight": 1086,
+      "servedWidth": 1200,
+      "servedHeight": 900,
+      "sourceBytes": 2643347,
+      "servedBytes": 192870,
+      "alt_fr": "Vue d'ensemble du comptoir de poissons et de fruits de mer.",
+      "provenance": "unverified"
+    },
+    {
+      "slug": "fresh-seafood-counter",
+      "source": "gallery/fresh-seafood-counter.png",
+      "served": "gallery/webp/fresh-seafood-counter.webp",
+      "sourceWidth": 1448,
+      "sourceHeight": 1086,
+      "servedWidth": 1200,
+      "servedHeight": 900,
+      "sourceBytes": 2543203,
+      "servedBytes": 151130,
+      "alt_fr": "Poissons et fruits de mer présentés sur le comptoir du restaurant.",
+      "provenance": "unverified"
+    },
+    {
+      "slug": "fresh-seafood-detail",
+      "source": "gallery/fresh-seafood-detail.png",
+      "served": "gallery/webp/fresh-seafood-detail.webp",
+      "sourceWidth": 1448,
+      "sourceHeight": 1086,
+      "servedWidth": 1200,
+      "servedHeight": 900,
+      "sourceBytes": 2727653,
+      "servedBytes": 190932,
+      "alt_fr": "Sélection de poissons et de fruits de mer sur le comptoir.",
+      "provenance": "unverified"
+    },
+    {
+      "slug": "fresh-tuna-display",
+      "source": "gallery/fresh-tuna-display.png",
+      "served": "gallery/webp/fresh-tuna-display.webp",
+      "sourceWidth": 1448,
+      "sourceHeight": 1086,
+      "servedWidth": 1200,
+      "servedHeight": 900,
+      "sourceBytes": 2850172,
+      "servedBytes": 193204,
+      "alt_fr": "Tranches de thon présentées sur le comptoir.",
+      "provenance": "unverified"
+    },
+    {
+      "slug": "starters-and-salads",
+      "source": "gallery/starters-and-salads.png",
+      "served": "gallery/webp/starters-and-salads.webp",
+      "sourceWidth": 1672,
+      "sourceHeight": 941,
+      "servedWidth": 1200,
+      "servedHeight": 900,
+      "sourceBytes": 2303293,
+      "servedBytes": 119748,
+      "alt_fr": "Salades et entrées préparées, présentées avant le service.",
+      "provenance": "unverified",
+      "note": "The one 16:9 source. Cropped to 4:3 by the processing script. CONTENT_POLICY.md allows cropping; nothing is stretched."
+    }
+  ],
+  "rejected": [
+    {
+      "source": "gallery/restaurant-dining-room.jpg",
+      "reason": "Shares a base name with the published dining-room image but is a DIFFERENT photograph, not a duplicate.",
+      "evidence": [
+        "Decoded pixels differ by a mean absolute channel difference of 70.4/255, which is a different picture rather than a re-encode.",
+        "1960x1103 (16:9) against 1448x1086 (4:3) for the published file.",
+        "It is the only file in the set carrying an EXIF block, so it entered the folder by a different route.",
+        "The previously approved derivative was 804x603, a 4:3 ratio, which matches the PNG and not this JPEG."
+      ],
+      "decision": "Kept on disk, referenced by nothing. Deleting it needs owner approval, so it has not been deleted.",
+      "ownerAction": "Confirm whether this is a second dining-room view worth publishing. If so, add it to src/lib/gallery-images.ts under its own slug; if not, delete it."
+    }
+  ],
+  "missing": [
+    {
+      "source": "gallery/wooden-ship-decor.*",
+      "reason": "The previous manifest published wooden-ship-decor.webp as 'Décoration maritime avec bateau en bois'. No such file exists in any form in the repository.",
+      "decision": "The reference is removed rather than left pointing at a missing file. Nothing renders it."
+    }
+  ],
+  "authenticity": {
+    "status": "unverified",
+    "concern": "Every photograph is marked provenance 'unverified'. They arrived as curated exports with no camera metadata, and nothing in the repository can show whether they are unaltered documentary photographs of this restaurant or were generated or materially edited.",
+    "policy": "docs/CONTENT_POLICY.md ranks an owner-approved temporary AI image fifth and below it only 'no image', and forbids passing materially different work off as documentary.",
+    "requiredBeforeLaunch": "The owner confirms this set is real photography of Resta Pescado, or the unconfirmed entries come off the site.",
+    "notClaimedByThisRepository": "Nothing here asserts a species, a certification, a provenance, or that any photograph shows a dish actually served."
+  }
+}

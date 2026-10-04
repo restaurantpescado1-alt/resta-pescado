@@ -1,8 +1,9 @@
+import { GalleryGrid } from "@/components/gallery-grid";
 import { ServiceUnavailable } from "@/components/service-unavailable";
 import { getDb } from "@/db";
 import { getPublicGalleryImages, getSiteSettings } from "@/db/repositories/menu";
 import type { GalleryImageRow, SiteSettingsRow } from "@/db/schema";
-import { mediaUrl } from "@/lib/format";
+import { listBundledGalleryImages } from "@/lib/gallery-images";
 
 export const dynamic = "force-dynamic";
 
@@ -32,13 +33,21 @@ async function loadGallery(): Promise<GalleryData> {
 /**
  * The gallery.
  *
- * `gallery_images` is empty until the owner uploads photographs of the place. The page
- * says so plainly instead of filling the space with something else.
+ * Two sources, shown in one grid:
+ *
+ * 1. The curated photographs bundled in the repository, described by
+ *    `src/lib/gallery-images.ts` and served from `public/`. Their order is curated.
+ * 2. Whatever the owner uploads through the dashboard, in R2 via `gallery_images`. Their
+ *    order is `sort_order`.
+ *
+ * Bundled first, because that is the sequence a curator chose and uploads arrive later.
+ * The table is read on every request rather than inlined, so a photo the owner adds shows
+ * up without a rebuild.
  *
  * The tempting shortcut would be to reuse the AI fish illustrations here. They are not
  * photographs of the restaurant, they illustrate species, and putting them on a page
  * captioned as the restaurant would be exactly the misrepresentation
- * `docs/CONTENT_POLICY.md` rules out.
+ * `docs/CONTENT_POLICY.md` rules out. So they never appear in this grid, and a test says so.
  */
 export default async function GalleryPage() {
   const data = await loadGallery();
@@ -47,55 +56,24 @@ export default async function GalleryPage() {
     return <ServiceUnavailable detail={data.detail} />;
   }
 
-  const { images } = data;
+  const bundled = listBundledGalleryImages();
 
   return (
     <div data-testid="gallery">
       <header className="pb-2">
         <h1 className="text-3xl font-bold tracking-tight">Galerie</h1>
+        {/*
+          "Photographies de la salle et des plats" was the original line and it claims
+          more than the repository can support: these files arrived as curated exports
+          whose contents cannot be verified from here. This says what is actually known,
+          and the provenance caveat below carries the rest.
+        */}
         <p className="mt-2 max-w-prose text-ink/75">
-          Photographies de la salle et des plats.
+          Photographies fournies pour le restaurant.
         </p>
       </header>
 
-      {images.length === 0 ? (
-        <section
-          className="mt-8 rounded-2xl border border-dashed border-line-strong p-10 text-center"
-          data-testid="gallery-empty"
-        >
-          <h2 className="text-lg font-bold">Les photos arrivent bientôt</h2>
-          <p className="mx-auto mt-2 max-w-md text-ink/75">
-            Nous n&apos;avons pas encore de photographies de la salle. Elles seront
-            ajoutées dès que nous en aurons.
-          </p>
-          <p className="mx-auto mt-4 max-w-md text-sm text-ink/70">
-            En attendant, la page&nbsp;
-            <a href="/a-propos#guide-poissons" className="text-marine underline underline-offset-4">
-              Nos poissons
-            </a>{" "}
-            présente les espèces que nous servons.
-          </p>
-        </section>
-      ) : (
-        <ul className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3">
-          {images.map((image) => (
-            <li key={image.id}>
-              <figure className="overflow-hidden rounded-xl border border-line bg-white/60">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={mediaUrl(image.imageKey)}
-                  alt={image.altTextFr}
-                  loading="lazy"
-                  className="aspect-[4/3] w-full object-cover"
-                />
-                <figcaption className="px-3 py-2 text-xs text-ink/75">
-                  {image.altTextFr}
-                </figcaption>
-              </figure>
-            </li>
-          ))}
-        </ul>
-      )}
+      <GalleryGrid bundled={bundled} uploaded={data.images} />
     </div>
   );
 }

@@ -11,6 +11,7 @@ import {
   HOME_PREVIEW_LIMIT,
 } from "../../scripts/approved-menu";
 import {
+  FISH_REFERENCE_EXPLANATION,
   FISH_REFERENCE_IMAGES,
   FISH_REFERENCE_LABEL,
   FISH_REFERENCE_ORDER,
@@ -197,7 +198,19 @@ describe("fish reference mapping", () => {
 
 describe("fish reference manifest", () => {
   it("uses the exact approved AI label", () => {
-    expect(FISH_REFERENCE_LABEL).toBe("Illustration de référence générée par IA");
+    expect(FISH_REFERENCE_LABEL).toBe("Illustration IA");
+  });
+
+  it("carries the one-time explanation the short label depends on", () => {
+    /*
+     * The badge was shortened because it repeated fifteen times down the menu. That trade
+     * only holds while the sentence behind it is rendered once per section, so both halves
+     * are asserted here rather than trusting either alone.
+     */
+    expect(FISH_REFERENCE_EXPLANATION).toBe(
+      "Les images de poissons sont des illustrations de référence générées par IA. " +
+        "Elles représentent le type de poisson, pas le plat servi.",
+    );
   });
 
   it("has a generated file for every manifest entry", () => {

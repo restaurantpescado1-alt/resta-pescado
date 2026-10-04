@@ -1,10 +1,15 @@
 import Link from "next/link";
 
+import { SafeImage } from "@/components/safe-image";
 import { ServiceUnavailable } from "@/components/service-unavailable";
 import { getDb } from "@/db";
 import { getSiteSettings } from "@/db/repositories/menu";
 import type { SiteSettingsRow } from "@/db/schema";
-import { FISH_REFERENCE_LABEL, listFishReferenceImages } from "@/lib/fish-images";
+import {
+  FISH_REFERENCE_EXPLANATION,
+  FISH_REFERENCE_LABEL,
+  listFishReferenceImages,
+} from "@/lib/fish-images";
 
 export const dynamic = "force-dynamic";
 
@@ -97,22 +102,29 @@ export default async function AboutPage() {
           Guide des poissons
         </h2>
         <p className="mt-2 max-w-prose text-ink/75">
-          Voici les espèces que nous pouvons servir. Les illustrations ci-dessous
-          représentent le poisson, pas le plat préparé.
+          Voici les espèces que nous pouvons servir.
+        </p>
+
+        {/* Stated once for the whole guide rather than under all eleven illustrations. */}
+        <p
+          className="mt-4 max-w-prose rounded-xl border border-line bg-warm/60 px-4 py-3 text-sm leading-snug text-ink/75"
+          data-testid="fish-reference-explanation"
+        >
+          {FISH_REFERENCE_EXPLANATION}
         </p>
 
         <ul className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {fish.map((image) => (
             <li key={image.slug} className="overflow-hidden rounded-2xl border border-line bg-white/60">
               <figure>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
+                <SafeImage
                   src={image.src}
                   alt={image.altFr}
                   width={image.width}
                   height={image.height}
                   loading="lazy"
-                  className="aspect-[4/3] w-full object-cover"
+                  className="aspect-[4/3] w-full bg-warm object-contain"
+                  fallbackClassName="aspect-[4/3] w-full rounded-none border-0"
                 />
                 <figcaption className="px-4 py-3">
                   <span className="block font-bold">{image.nameFr}</span>

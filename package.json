@@ -23,6 +23,7 @@
     "db:seed:local": "tsx scripts/seed-local.ts",
     "db:reset:local": "tsx scripts/seed-local.ts --reset",
     "images:fish": "tsx scripts/process-fish-images.ts",
+    "images:gallery": "tsx scripts/process-gallery-images.ts",
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install chromium"
   },

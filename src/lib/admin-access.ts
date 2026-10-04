@@ -33,5 +33,11 @@ export class NotOwnerError extends Error {
 export const ADMIN_RATE_LIMITS: Record<string, RateLimitRule> = {
   updateDishPrice: { action: "menu_item.update_price", limit: 60, windowSeconds: 60 },
   replaceDishImage: { action: "menu_item.replace_image", limit: 10, windowSeconds: 60 },
+  /*
+   * Removal is destructive and there is no undo in the dashboard, so it gets a tighter
+   * budget than an upload. Ten a minute is enough to tidy a whole menu and small enough
+   * that a stuck retry loop cannot work through the bucket quickly.
+   */
+  removeDishImage: { action: "menu_item.remove_image", limit: 10, windowSeconds: 60 },
   setDishFeatured: { action: "menu_item.set_featured", limit: 60, windowSeconds: 60 },
 };

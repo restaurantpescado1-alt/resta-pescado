@@ -1,6 +1,7 @@
 import type { MenuItemRow } from "@/db/schema";
 import { getFishReferenceImage, FISH_REFERENCE_LABEL } from "@/lib/fish-images";
 import { formatPrice, mediaUrl } from "@/lib/format";
+import { SafeImage } from "@/components/safe-image";
 
 /**
  * One dish on the menu.
@@ -11,10 +12,14 @@ import { formatPrice, mediaUrl } from "@/lib/format";
  *   it always wins, because it is the only thing that shows what you are served.
  * - An **AI-generated reference illustration** of the fish species, via
  *   `item.fishReferenceSlug`, from `public/`. It answers "which fish is this" and can
- *   never stand in for a photo of the plate, so the mandatory AI label is rendered
- *   beside it.
+ *   never stand in for a photo of the plate, so the mandatory AI badge is rendered beside
+ *   it and the illustration is drawn `contain` on the warm shell colour so the whole fish
+ *   shows rather than being cropped to a square.
  *
- * A dish with neither shows a neutral placeholder rather than a stand-in image.
+ * A dish with neither gets no image box at all. An earlier version rendered a dashed
+ * "Sans image" tile, which on a menu with nineteen dishes without a photograph meant
+ * nineteen identical grey squares carrying no information. The row is simply a text row,
+ * which is what it is.
  */
 export function DishCard({
   item,
@@ -27,37 +32,36 @@ export function DishCard({
   const photo = item.imageKey ? mediaUrl(item.imageKey) : null;
 
   return (
-    <li className="flex gap-4 border-b border-line py-4 last:border-b-0" data-item-id={item.id}>
+    <li
+      className={`flex gap-4 border-b border-line py-4 last:border-b-0 ${photo || fish ? "" : "pl-0"}`}
+      data-item-id={item.id}
+    >
       {photo ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
+        <SafeImage
           src={photo}
           alt={item.nameFr}
           width={96}
           height={96}
           loading="lazy"
           className="h-24 w-24 shrink-0 rounded-lg border border-line object-cover"
+          fallbackClassName="h-24 w-24 shrink-0 text-[0.7rem]"
         />
       ) : fish ? (
-        <figure className="shrink-0">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+        <figure className="h-24 w-32 shrink-0">
+          <SafeImage
             src={fish.src}
             alt={fish.altFr}
             width={fish.width}
             height={fish.height}
             loading="lazy"
-            className="h-24 w-32 rounded-lg border border-line object-cover"
+            // `contain` on the shell colour: a 4:3 illustration of a whole fish inside a
+            // 96x128 box would lose its head or tail to a crop, and the shape of the fish
+            // is the entire point of the picture.
+            className="h-24 w-32 rounded-lg border border-line bg-warm object-contain"
+            fallbackClassName="h-24 w-32 text-[0.65rem]"
           />
         </figure>
-      ) : (
-        <div
-          aria-hidden="true"
-          className="flex h-24 w-24 shrink-0 items-center justify-center rounded-lg border border-dashed border-line text-xs text-ink/60"
-        >
-          Sans image
-        </div>
-      )}
+      ) : null}
 
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-3">
@@ -75,10 +79,11 @@ export function DishCard({
         {item.descriptionFr ? <p className="mt-1 text-sm text-ink/75">{item.descriptionFr}</p> : null}
 
         {/*
-          The AI label. Required whenever a reference illustration is shown, so a
-          visitor can never mistake a drawing of a fish for a photograph of a dish.
-          `showAiLabel` exists for the fish guide, whose caption already names the
-          species and carries the label itself.
+          The AI badge. Required whenever a reference illustration is shown, so a visitor
+          can never mistake a drawing of a fish for a photograph of a dish. The sentence
+          that explains these images is rendered once per section instead, by the caller.
+          `showAiLabel` exists for the fish guide, whose caption already names the species
+          and carries the label itself.
         */}
         {!photo && fish && showAiLabel ? (
           <p className="mt-2 text-xs leading-snug text-ink/70" data-testid="fish-reference-label">

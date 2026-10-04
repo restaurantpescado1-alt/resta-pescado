@@ -1,11 +1,18 @@
 import Link from "next/link";
 
 import { DishCard } from "@/components/dish";
+import { SafeImage } from "@/components/safe-image";
 import { ServiceUnavailable } from "@/components/service-unavailable";
 import { getDb } from "@/db";
 import { getPublicMenu, getSiteSettings } from "@/db/repositories/menu";
 import type { MenuCategoryRow, MenuItemRow, SiteSettingsRow } from "@/db/schema";
-import { FISH_REFERENCE_IMAGES, FISH_REFERENCE_LABEL, listFishReferenceImages } from "@/lib/fish-images";
+import { bundledGalleryUrl, getBundledGalleryImage } from "@/lib/gallery-images";
+import {
+  FISH_REFERENCE_IMAGES,
+  FISH_REFERENCE_LABEL,
+  FISH_REFERENCE_EXPLANATION,
+  listFishReferenceImages,
+} from "@/lib/fish-images";
 import { selectHomePreview, telHref } from "@/lib/public-site";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +22,16 @@ export const dynamic = "force-dynamic";
  * 34 dishes long and the section exists to invite a click through to `/menu`.
  */
 const PREVIEW_LIMIT = 6;
+
+/**
+ * The hero picture.
+ *
+ * Read from the gallery manifest rather than hardcoded, so the hero cannot end up
+ * pointing at a file the gallery does not publish. A missing entry would be a manifest
+ * bug, and `getBundledGalleryImage` returning nothing is handled by simply not
+ * rendering the picture.
+ */
+const HERO_IMAGE = getBundledGalleryImage("restaurant-dining-room");
 
 type HomeData =
   | { status: "ok"; items: MenuItemRow[]; settings: SiteSettingsRow | null }
@@ -69,29 +86,66 @@ export default async function HomePage() {
           measured 784px wide against a 768px viewport and the page scrolled sideways.
         */}
         <section className="wave-hero -mx-4 px-4 py-14 text-on-ocean">
-        <div className="mx-auto max-w-6xl">
-          <h1 className="max-w-2xl text-4xl font-bold tracking-tight sm:text-5xl">
-            {settings?.heroTitleFr ?? "Poissons et fruits de mer, préparés à Alger."}
-          </h1>
-          <p className="mt-4 max-w-xl text-lg text-on-ocean-soft">
-            {settings?.heroSubtitleFr ?? "Une carte courte, révisée chaque jour."}
-          </p>
+        <div className="mx-auto grid max-w-6xl items-center gap-10 md:grid-cols-2">
+          {/*
+            Text first in the source so it is the first thing read on a narrow screen,
+            and `order` puts the picture after the title and actions on mobile while
+            still sitting beside them on desktop.
+          */}
+          <div className="order-1">
+            <h1 className="max-w-2xl text-4xl font-bold tracking-tight sm:text-5xl">
+              {settings?.heroTitleFr ?? "Poissons et fruits de mer, préparés à Alger."}
+            </h1>
+            <p className="mt-4 max-w-xl text-lg text-on-ocean-soft">
+              {/*
+                No "revised every day" and no "fish of the day". Both promise a
+                freshness the restaurant cannot guarantee and neither was confirmed,
+                so the fallback points at the phone, which is what actually works.
+              */}
+              {settings?.heroSubtitleFr ??
+                "Consultez notre carte et appelez-nous pour commander, réserver une table ou demander une livraison."}
+            </p>
 
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Link
-              href="/menu"
-              className="rounded-full bg-accent px-6 py-3 text-sm font-bold text-ink transition-transform hover:scale-[1.02]"
-            >
-              Voir la carte
-            </Link>
-            {settings?.phoneFr ? (
-              <a
-                href={telHref(settings.phoneFr)}
-                className="rounded-full border-2 border-on-ocean px-6 py-3 text-sm font-bold transition-colors hover:bg-white/10"
-                data-testid="hero-call"
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link
+                href="/menu"
+                className="rounded-full bg-accent px-6 py-3 text-sm font-bold text-ink transition-transform hover:scale-[1.02]"
               >
-                Appeler {settings.phoneFr}
-              </a>
+                Voir la carte
+              </Link>
+              {settings?.phoneFr ? (
+                <a
+                  href={telHref(settings.phoneFr)}
+                  className="rounded-full border-2 border-on-ocean px-6 py-3 text-sm font-bold transition-colors hover:bg-white/10"
+                  data-testid="hero-call"
+                >
+                  Appeler {settings.phoneFr}
+                </a>
+              ) : null}
+            </div>
+          </div>
+
+          {/*
+            A photograph of the dining room, never of a dish.
+
+            Alt text names the room and says it is a photograph, because the failure
+            mode here is a visitor reading a restaurant interior as a picture of what
+            the fish looks like. `contain` keeps the whole frame on the warm colour so
+            the picture is never cropped to a shape it was not taken in.
+          */}
+          <div className="order-2">
+            {HERO_IMAGE ? (
+              <figure className="overflow-hidden rounded-2xl border border-on-ocean/25 bg-warm">
+                <SafeImage
+                  src={bundledGalleryUrl(HERO_IMAGE.webpFile)}
+                  alt="Photographie de la salle du restaurant Resta Pescado."
+                  width={HERO_IMAGE.width}
+                  height={HERO_IMAGE.height}
+                  loading="eager"
+                  className="aspect-[4/3] w-full object-contain"
+                  fallbackClassName="aspect-[4/3] w-full rounded-none border-0"
+                />
+              </figure>
             ) : null}
           </div>
         </div>
@@ -122,8 +176,8 @@ export default async function HomePage() {
           </ul>
         ) : (
           <p className="mt-6 rounded-lg border border-dashed border-line-strong p-6 text-ink/75">
-            La carte est en cours de mise à jour. Merci de nous appeler pour les
-            disponibilités du jour.
+            La carte est en cours de mise à jour. Merci de nous appeler pour connaître
+            les plats que nous proposons.
           </p>
         )}
       </section>
@@ -161,17 +215,26 @@ export default async function HomePage() {
           </Link>
         </div>
 
+        <p className="mt-4 max-w-prose rounded-xl border border-line bg-warm/60 px-4 py-3 text-sm leading-snug text-ink/75" data-testid="fish-reference-explanation">
+          {FISH_REFERENCE_EXPLANATION}
+        </p>
+
         <ul className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
           {guide.map((fish) => (
             <li key={fish.slug} className="overflow-hidden rounded-xl border border-line bg-white/60">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
+              {/*
+                `contain` on the warm colour, matching the menu: these are whole-fish
+                illustrations, and cropping one to a square would cut the head or tail
+                off the very shape the picture exists to show.
+              */}
+              <SafeImage
                 src={fish.src}
                 alt={fish.altFr}
                 width={fish.width}
                 height={fish.height}
                 loading="lazy"
-                className="aspect-[4/3] w-full object-cover"
+                className="aspect-[4/3] w-full bg-warm object-contain"
+                fallbackClassName="aspect-[4/3] w-full rounded-none border-0"
               />
               <div className="px-3 py-2">
                 <p className="text-sm font-semibold">{fish.nameFr}</p>
@@ -205,11 +268,18 @@ export default async function HomePage() {
         {settings?.deliveryEnabled ? (
           <div className="rounded-2xl border border-line bg-white/60 p-6">
             <h3 className="text-lg font-bold">Livraison</h3>
-            {settings.deliveryZonesTextFr ? (
-              <p className="mt-2 text-ink/75">{settings.deliveryZonesTextFr}</p>
-            ) : null}
+            {/*
+              The confirmed delivery facts, in the order a customer needs them: how to
+              order, that we confirm the address, that there is no minimum, and that the
+              fee is quoted on the call. The full detail lives on `/contact`.
+            */}
             {settings.pickupTextFr ? (
-              <p className="mt-2 font-semibold text-marine">{settings.pickupTextFr}</p>
+              <p className="mt-2 text-ink/75" data-testid="home-delivery">
+                {settings.pickupTextFr}
+              </p>
+            ) : null}
+            {settings.deliveryFeeTextFr ? (
+              <p className="mt-2 text-sm text-ink/70">{settings.deliveryFeeTextFr}</p>
             ) : null}
           </div>
         ) : null}

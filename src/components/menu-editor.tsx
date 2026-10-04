@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import {
+  removeDishImageAction,
   replaceDishImageAction,
   setDishFeaturedAction,
   updateDishPriceAction,
@@ -138,6 +139,38 @@ function DishEditorRow({
     });
   }
 
+  function submitRemoveImage(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    /*
+     * Confirmation lives here rather than on the button.
+     *
+     * A single modal-less `confirm()` is deliberate: there is no undo in this
+     * dashboard, and this is the one control here that destroys something. The dialog is
+     * the browser's, so it works with a keyboard and a screen reader without any focus
+     * management code, and it cannot be styled into looking harmless.
+     *
+     * Cancelling returns without touching the form, so nothing is submitted.
+     */
+    if (!window.confirm("Supprimer définitivement la photo de ce plat ?")) {
+      return;
+    }
+
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    setBusyItemId(item.id);
+    setMessage(null);
+
+    startTransition(async () => {
+      const result = await removeDishImageAction(formData);
+      setMessage(result);
+      setBusyItemId(null);
+      if (result.ok) {
+        routerRefresh();
+      }
+    });
+  }
+
   function submitFeatured() {
     setBusyItemId(item.id);
     setMessage(null);
@@ -248,6 +281,42 @@ function DishEditorRow({
             </button>
           </div>
         </form>
+
+        {/*
+          Removal, in its own form so it cannot be submitted by accident alongside an
+          upload. There is no undo in the dashboard, which is why it is a separate
+          control and why it asks first.
+        */}
+        {item.imageKey ? (
+          <form
+            onSubmit={submitRemoveImage}
+            className="rounded border border-line bg-white/60 p-3 sm:col-span-2"
+            data-testid="remove-image-form"
+          >
+            <input type="hidden" name="menuItemId" value={item.id} />
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-ink/75">
+                {/*
+                  Stated before the button, not after a failure: what the dish will show
+                  afterwards is the thing the owner needs to decide, and on a dish whose
+                  species is mapped it means the AI illustration comes back, which could
+                  otherwise look like the removal failed.
+                */}
+                {item.fishReferenceSlug
+                  ? "Le plat affichera son illustration de poisson, et non une photo de plat."
+                  : "Le plat s'affichera sans image, en texte seul."}
+              </p>
+              <button
+                type="submit"
+                disabled={isPending}
+                data-testid="remove-image"
+                className="rounded border border-danger px-3 py-2 text-sm font-semibold text-danger transition-colors hover:bg-danger/10 disabled:opacity-60"
+              >
+                {isBusy ? "…" : "Supprimer la photo"}
+              </button>
+            </div>
+          </form>
+        ) : null}
       </div>
     </li>
   );

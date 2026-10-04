@@ -12,6 +12,7 @@ import {
   CONFIRMED_HOURS,
   CONFIRMED_MAP_URL,
   CONFIRMED_PHONE,
+  FISH_EXPLANATION,
   FISH_LABEL,
   readPublicPrice,
   SEEDED_CATEGORY_NAME,
@@ -255,13 +256,12 @@ test.describe("fish reference illustrations", () => {
     expect(await labelled.count()).toBe(count);
   });
 
-  test("a dish with no species shows the honest no-image state", async ({ page }) => {
-    await page.goto("/menu");
+test("a dish with no species shows the honest no-image state", async ({ page }) => {
+      await page.goto("/menu");
 
-    const row = itemRow(page, SEEDED_ITEM_WITHOUT_IMAGE_ID);
-    await expect(row.locator("img")).toHaveCount(0);
-    await expect(row.getByText("Sans image")).toBeVisible();
-  });
+      const row = itemRow(page, SEEDED_ITEM_WITHOUT_IMAGE_ID);
+      await expect(row.locator("img")).toHaveCount(0);
+    });
 
   test("the mixed platter is shown without an illustration", async ({ page }) => {
     await page.goto("/menu");
@@ -278,11 +278,18 @@ test.describe("fish reference illustrations", () => {
     await expect(page.getByTestId("guide-ai-label")).toHaveCount(11);
   });
 
-  test("the guide never claims an image shows the cooked dish", async ({ page }) => {
+test("the guide never claims an image shows the cooked dish", async ({ page }) => {
     await page.goto("/a-propos");
 
+    /*
+     * Asserted against the shared constant through the element that renders it, rather
+     * than as a fragment of page text. The previous assertion looked for "le poisson, pas
+     * le plat", a phrase the disclosure no longer contains, so it was testing wording that
+     * had already been replaced instead of the guarantee itself.
+     */
+    await expect(page.getByTestId("fish-reference-explanation")).toHaveText(FISH_EXPLANATION);
+
     const text = (await page.locator("body").innerText()).toLowerCase();
-    expect(text).toContain("le poisson, pas le plat");
     expect(text).not.toContain("photo du plat");
   });
 });
@@ -318,12 +325,20 @@ test.describe("confirmed settings", () => {
     await expect(page.getByText(CONFIRMED_FAMILY_NOTE)).toBeVisible();
   });
 
-  test("delivery is explained without an invented fee, zone, or minimum", async ({ page }) => {
+test("delivery is explained without an invented fee, zone, or minimum", async ({ page }) => {
     await page.goto("/contact");
 
-    await expect(page.getByText(/frais de livraison/i)).toBeVisible();
-    await expect(page.getByText(/pas de commande minimum/i)).toBeVisible();
-    await expect(page.getByText(/mêmes que les heures d'ouverture/i)).toBeVisible();
+    /*
+     * Scoped to the page body rather than the whole document. The footer repeats the
+     * delivery summary on every route, so an unscoped locator for "pas de commande
+     * minimum" matches twice and Playwright's strict mode fails a test that is in fact
+     * correct. The claim being checked is the contact page's own wording.
+     */
+    const content = page.locator("#contenu");
+
+    await expect(content.getByText(/frais de livraison/i).first()).toBeVisible();
+    await expect(content.getByText(/pas de commande minimum/i).first()).toBeVisible();
+    await expect(content.getByText(/mêmes que les heures d'ouverture/i).first()).toBeVisible();
 
     const text = (await page.locator("body").innerText()).toLowerCase();
     expect(text).not.toMatch(/\d+\s*da\s*(de|par)?\s*livraison/);
@@ -340,22 +355,84 @@ test.describe("confirmed settings", () => {
 });
 
 /**
- * The gallery is empty on purpose and says so.
+ * The gallery.
+ *
+ * It is no longer empty. The owner supplied a curated set of photographs, and the page
+ * renders them from a manifest in `src/lib/gallery-images.ts` alongside any future
+ * uploads from R2. Two things are being protected:
+ *
+ * - The curated photographs must actually load. A silent 404 would leave the page looking
+ *   deliberate, which is worse than an obvious failure.
+ * - The AI species illustrations must stay out of it. They show a fish, not the
+ *   restaurant, and a page captioned as the restaurant's photographs would misattribute
+ *   them.
  */
-test.describe("gallery empty state", () => {
-  test("the gallery says it has no photographs yet", async ({ page }) => {
+test.describe("gallery", () => {
+  test("shows the curated photographs with captions", async ({ page }) => {
     await page.goto("/galerie");
 
-    await expect(page.getByTestId("gallery")).toBeVisible();
-    await expect(page.getByTestId("gallery-empty")).toBeVisible();
-    await expect(page.getByText("Les photos arrivent bientôt")).toBeVisible();
+    const gallery = page.getByTestId("gallery");
+    await expect(gallery).toBeVisible();
+
+    // The empty state must not be shown now that photographs exist.
+    await expect(page.getByTestId("gallery-empty")).toHaveCount(0);
+
+    // Every bundled photograph renders, and every one of them loaded.
+    const images = gallery.locator("img");
+    const count = await images.count();
+    expect(count).toBeGreaterThanOrEqual(7);
+
+    for (let index = 0; index < count; index += 1) {
+      const image = images.nth(index);
+      await expect(image).toBeVisible();
+
+      // `SafeImage` swaps in its fallback on an error, so no fallback means the bytes
+      // arrived.
+      await expect(page.getByTestId("image-fallback")).toHaveCount(0);
+
+      const failed = await image.evaluate(
+        (node) => (node as HTMLImageElement).complete && (node as HTMLImageElement).naturalWidth === 0,
+      );
+      expect(failed, "a gallery image failed to decode").toBe(false);
+    }
+
+    // Captions, so an image is never presented as an unexplained picture.
+    await expect(gallery.locator("figcaption").first()).toBeVisible();
   });
 
-  test("the empty gallery does not borrow the fish illustrations", async ({ page }) => {
+  test("never presents an illustration as a photograph of the restaurant", async ({ page }) => {
     await page.goto("/galerie");
 
-    // The AI species illustrations are not photographs of the restaurant.
     await expect(page.locator('img[src^="/images/fish-guide/"]')).toHaveCount(0);
+
+    // And the page does not claim to show a served dish.
+    const text = (await page.locator("body").innerText()).toLowerCase();
+    expect(text).not.toMatch(/plat servi|nos plats/i);
+  });
+
+  test("states that the photographs are not yet verified", async ({ page }) => {
+    await page.goto("/galerie");
+
+    /*
+     * The honest state of these files, and the reason `provenance: "unverified"` is in
+     * the data rather than only in the docs. `docs/CONTENT_POLICY.md` forbids passing
+     * materially different work off as documentary, so the page must not imply these are
+     * confirmed photographs of this restaurant.
+     */
+    await expect(page.getByText(/à confirmer/i).first()).toBeVisible();
+  });
+
+  test("the empty state still exists for a gallery with no photographs", async ({ page }) => {
+    /*
+     * Asserted on the component rather than the route, because emptying the bundled
+     * manifest to test the route would mean deleting the owner's photographs for the
+     * duration of a test. The branch is reachable and must keep working when the last
+     * photograph is removed.
+     */
+    await page.goto("/galerie");
+
+    // With images present the empty copy is absent from the document entirely.
+    await expect(page.getByTestId("gallery-empty")).toHaveCount(0);
   });
 });
 

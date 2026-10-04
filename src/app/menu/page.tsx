@@ -5,6 +5,7 @@ import { ServiceUnavailable } from "@/components/service-unavailable";
 import { getDb } from "@/db";
 import { getPublicMenu, getSiteSettings } from "@/db/repositories/menu";
 import type { MenuCategoryRow, MenuItemRow, SiteSettingsRow } from "@/db/schema";
+import { FISH_REFERENCE_EXPLANATION } from "@/lib/fish-images";
 import { telHref } from "@/lib/public-site";
 
 export const dynamic = "force-dynamic";
@@ -35,7 +36,7 @@ async function loadMenu(): Promise<MenuData> {
 
 export const metadata = {
   title: "La carte",
-  description: "Les plats du restaurant, avec les prix du jour.",
+  description: "Les plats du restaurant et leurs prix en dinars algériens.",
 };
 
 export default async function MenuPage() {
@@ -49,9 +50,11 @@ export default async function MenuPage() {
     return (
       <section className="rounded-2xl border border-dashed border-line-strong p-10 text-center" data-testid="menu-empty">
         <h1 className="text-xl font-bold">La carte arrive bientôt</h1>
-        <p className="mt-2 text-ink/75">Aucun plat n&apos;est encore disponible.</p>
+        <p className="mt-2 max-w-prose text-ink/75">
+          Aucun plat n&apos;est encore disponible.
+        </p>
         <p className="mt-4 text-sm text-ink/75">
-          Merci de nous appeler pour connaître les disponibilités du jour.
+          Merci de nous appeler pour connaître les plats que nous proposons.
         </p>
       </section>
     );
@@ -64,7 +67,7 @@ export default async function MenuPage() {
       <header className="pb-2">
         <h1 className="text-3xl font-bold tracking-tight">La carte</h1>
         <p className="mt-2 max-w-prose text-ink/75">
-          {total} plats, mis à jour par le restaurant. Les prix sont en dinars algériens.
+          {total} plats, avec les prix en dinars algériens. Pour commander, appelez-nous.
         </p>
         {data.settings?.hoursFr ? (
           <p className="mt-1 text-sm text-ink/70">{data.settings.hoursFr}</p>
@@ -82,6 +85,18 @@ export default async function MenuPage() {
           </a>
         ))}
       </nav>
+
+      {/*
+        Stated once for the whole page rather than under each of the fifteen illustrated
+        dishes. The illustrations are scattered across categories, so a per-category note
+        would repeat itself several times over.
+      */}
+      <p
+        className="mt-6 max-w-prose rounded-xl border border-line bg-warm/60 px-4 py-3 text-sm leading-snug text-ink/75"
+        data-testid="fish-reference-explanation"
+      >
+        {FISH_REFERENCE_EXPLANATION}
+      </p>
 
       <div className="mt-10 space-y-12">
         {data.categories.map((category) => (

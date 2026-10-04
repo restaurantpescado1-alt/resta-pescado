@@ -30,15 +30,25 @@ export const SEEDED_ITEM_WITHOUT_IMAGE_ID = "item-soda";
 /**
  * The dish the upload specs mutate.
  *
- * Uploading a photo is not reversible: there is no "remove image" control, so the
- * first successful upload sticks for the rest of the run. Any spec that uploads has to
- * use a dish nothing else makes an assertion about, or the suite becomes
- * order-dependent and the failure looks like a product bug.
+ * Every spec here that uploads has to use a dish nothing else makes an assertion about, or
+ * the suite becomes order-dependent and a failure looks like a product bug.
  *
  * `item-canette` is a drink with no species, so it is invisible to the fish-guide and
  * menu-card assertions.
  */
 export const UPLOAD_TEST_ITEM_ID = "item-canette";
+
+/**
+ * Dishes the removal specs mutate.
+ *
+ * Removal is the one image operation that is reversible, so these specs restore the
+ * seeded state themselves. Two are used rather than one because the fallback differs:
+ * removing a photograph from a mapped dish must bring its species illustration back, and
+ * removing one from an unmapped dish must leave a plain text row. Testing only the first
+ * would leave the second path unproven, and it is the one a visitor is likelier to hit.
+ */
+export const REMOVAL_TEST_ITEM_ID = "item-merlan";
+export const REMOVAL_TEST_ITEM_WITHOUT_FISH_ID = "item-jus";
 
 /** The species slug mapped to {@link SEEDED_ITEM_ID}. */
 export const SEEDED_FISH_SLUG = "dorade";
@@ -51,8 +61,23 @@ export const CONFIRMED_MAP_URL = "https://maps.app.goo.gl/n3cMmMpeXeLDsQtY6";
 export const CONFIRMED_FAMILY_NOTE =
   "Restaurant familial. Une chaise haute est disponible pour les enfants.";
 
-/** The mandatory label for every AI-generated fish illustration. */
-export const FISH_LABEL = "Illustration de référence générée par IA";
+/**
+ * The mandatory visible label for every AI-generated fish illustration.
+ *
+ * Deliberately short. It sits on every dish card that carries one, so the full sentence
+ * was repeated fifteen times on the menu; `FISH_EXPLANATION` below carries it once per
+ * section instead.
+ */
+export const FISH_LABEL = "Illustration IA";
+
+/**
+ * The one-time explanation that the illustrations show a species and not the served dish.
+ * Asserted alongside `FISH_LABEL` so shortening the label cannot quietly remove the
+ * disclosure it depends on.
+ */
+export const FISH_EXPLANATION =
+  "Les images de poissons sont des illustrations de référence générées par IA. " +
+  "Elles représentent le type de poisson, pas le plat servi.";
 
 export function ownerEmail(): string {
   return process.env.OWNER_EMAIL ?? "owner@resta-pescado.local";

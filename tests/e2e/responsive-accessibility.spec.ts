@@ -71,12 +71,110 @@ test.describe("responsive layout", () => {
     }
   });
 
-  test("the navigation is reachable on a phone without a menu button", async ({ page }) => {
+  test("the closed header stays on one row and reveals the navigation on demand", async ({ page }) => {
     await page.goto("/");
 
-    // The mobile nav wraps onto its own row rather than hiding behind a disclosure,
-    // so it must be present and visible at 390px.
-    const nav = page.getByRole("navigation", { name: "Navigation principale" }).first();
+    const toggle = page.getByTestId("mobile-nav-toggle");
+    const panel = page.getByTestId("mobile-nav");
+
+    /*
+     * Closed by default. The header is sticky, so a two-row header at 390px permanently
+     * occupies a fifth of the screen on the route where the menu matters most.
+     */
+    await expect(toggle).toBeVisible();
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await expect(panel).toBeHidden();
+
+    /*
+     * One row. The identity, the phone action, and the button must share a single
+     * horizontal band, so their vertical centres line up and the header stays short.
+     * This is what a two-row header looks like in numbers, and it is the thing that used
+     * to cost a fifth of a 390px screen on every scrolled page.
+     */
+    const header = page.getByRole("banner");
+    const headerBox = (await header.boundingBox())!;
+    expect(headerBox.height).toBeLessThanOrEqual(80);
+
+    const identity = (await page.getByRole("link", { name: "Resta Pescado, accueil" }).boundingBox())!;
+    const phone = (await page.getByTestId("header-phone").boundingBox())!;
+    const toggleBox = (await toggle.boundingBox())!;
+
+    const centre = (box: { y: number; height: number }) => box.y + box.height / 2;
+    expect(Math.abs(centre(identity) - centre(phone))).toBeLessThanOrEqual(4);
+    expect(Math.abs(centre(phone) - centre(toggleBox))).toBeLessThanOrEqual(4);
+
+    // The phone action stays visible while the menu is closed, because it is the point.
+    await expect(page.getByTestId("header-phone")).toBeVisible();
+
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await expect(panel).toBeVisible();
+    await expect(panel.getByRole("link", { name: "Contact" })).toBeVisible();
+
+    // Escape closes it again.
+    await page.keyboard.press("Escape");
+    await expect(panel).toBeHidden();
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  });
+
+  test("the navigation enters and leaves the tab order with the panel", async ({ page }) => {
+    await page.goto("/");
+
+    /*
+     * The panel is toggled with the `hidden` attribute rather than a class, so its links
+     * leave the tab order with it. A menu that stays tabbable while visually closed is
+     * focus moving somewhere invisible, which strands keyboard users with no idea where
+     * they are.
+     */
+    const panel = page.getByTestId("mobile-nav");
+    const toggle = page.getByTestId("mobile-nav-toggle");
+    const firstLink = panel.getByRole("link", { name: "Accueil" });
+
+    await expect(panel).toBeHidden();
+    await expect(firstLink).toBeHidden();
+
+    /*
+     * Tabbing forward from the toggle must land inside the open panel. Focus stays on the
+     * button rather than being pushed to the first item, which is acceptable here: the
+     * panel is a short list of links directly after the button, so one Tab reaches it and
+     * no focus trap is needed.
+     */
+    await toggle.focus();
+    await toggle.press("Enter");
+    await expect(panel).toBeVisible();
+
+    await page.keyboard.press("Tab");
+    const landedInPanel = await panel
+      .getByRole("link")
+      .first()
+      .evaluate((node) => node === document.activeElement)
+      .catch(() => false);
+    expect(landedInPanel).toBe(true);
+
+    // Closed again, the links are unreachable again.
+    await page.keyboard.press("Escape");
+    await expect(panel).toBeHidden();
+    await expect(firstLink).toBeHidden();
+  });
+
+  test("choosing a destination closes the menu", async ({ page }) => {
+    await page.goto("/");
+
+    await page.getByTestId("mobile-nav-toggle").click();
+    await page.getByTestId("mobile-nav").getByRole("link", { name: "Galerie" }).click();
+
+    await expect(page).toHaveURL(/\/galerie$/);
+    await expect(page.getByTestId("mobile-nav")).toBeHidden();
+  });
+
+  test("the desktop navigation replaces the button above the breakpoint", async ({ page }) => {
+    await page.goto("/");
+    await page.setViewportSize({ width: 1280, height: 900 });
+
+    await expect(page.getByTestId("mobile-nav-toggle")).toBeHidden();
+    await expect(page.getByTestId("mobile-nav")).toBeHidden();
+
+    const nav = page.getByTestId("desktop-nav");
     await expect(nav).toBeVisible();
     await expect(nav.getByRole("link", { name: "Contact" })).toBeVisible();
   });
@@ -128,7 +226,15 @@ test.describe("accessibility", () => {
   test("the main navigation can be traversed and used by keyboard alone", async ({ page }) => {
     await page.goto("/");
 
-    const nav = page.getByRole("navigation", { name: "Navigation principale" }).first();
+    /*
+     * At desktop width, where the primary navigation is the visible list. Below `md` the
+     * links live behind the disclosure instead, which has its own traversal test above.
+     * Two `navigation` landmarks share the name "Navigation principale" by design, so
+     * these tests target the one they mean by test id rather than by position.
+     */
+    await page.setViewportSize({ width: 1280, height: 900 });
+
+    const nav = page.getByTestId("desktop-nav");
     const menuLink = nav.getByRole("link", { name: "La carte" });
 
     await menuLink.focus();

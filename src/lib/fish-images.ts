@@ -15,12 +15,34 @@
  */
 
 /**
- * The exact wording the owner approved for identifying these images.
+ * The compact badge shown beside every reference illustration.
  *
- * French, matching the public UI. Kept as one constant so the label can never drift
- * between the menu, the fish guide, and the home page.
+ * French, matching the public UI, and kept as one constant so it can never drift between
+ * the menu, the fish guide, and the home page. Short on purpose: it sits under a dish name
+ * in a narrow column, and the sentence that actually explains the images is
+ * `FISH_REFERENCE_EXPLANATION`, shown once per section instead of on every card.
  */
-export const FISH_REFERENCE_LABEL = "Illustration de référence générée par IA";
+export const FISH_REFERENCE_LABEL = "Illustration IA";
+
+/**
+ * The one explanation, shown once per section that displays reference illustrations.
+ *
+ * Repeating a two-line sentence under all fifteen illustrated dishes would bury the menu
+ * in boilerplate, so it appears once where the section starts.
+ *
+ * The second sentence is the important one. A visitor has to understand that the picture
+ * answers "which fish is this" and not "what does the plate look like", and that the
+ * restaurant is not asserting a species identification from a generated image.
+ */
+export const FISH_REFERENCE_EXPLANATION =
+  "Les images de poissons sont des illustrations de référence générées par IA. " +
+  "Elles représentent le type de poisson, pas le plat servi.";
+
+/**
+ * Phrase used inside alt text, where there is no room for the badge and the reader needs
+ * to be told what kind of image this is rather than what it shows.
+ */
+const FISH_REFERENCE_ALT_KIND = "Illustration de référence générée par IA";
 
 export interface FishReferenceImage {
   /** Stable key used in the database (`menu_items.fish_reference_slug`). */
@@ -33,8 +55,12 @@ export interface FishReferenceImage {
   readonly width: number;
   readonly height: number;
   /**
-   * Alt text. Describes the species and says what the image is, because a visitor
-   * using a screen reader has no other way to learn that this is a drawing.
+   * Alt text. Describes the species and says what kind of image this is, because a
+   * visitor using a screen reader has no other way to learn that this is a drawing.
+   *
+   * Deliberately does not claim the drawing proves which species the restaurant sells.
+   * The species mapping is owner-confirmed in `scripts/approved-menu.ts`; the picture is
+   * a generated illustration, so it is evidence of nothing.
    */
   readonly altFr: string;
 }
@@ -54,7 +80,7 @@ function fish(
     src: `/images/fish-guide/${slug}.webp`,
     width: FISH_IMAGE_WIDTH,
     height: FISH_IMAGE_HEIGHT,
-    altFr: `${altFr} ${FISH_REFERENCE_LABEL.toLowerCase()}.`,
+    altFr: `${altFr} ${FISH_REFERENCE_ALT_KIND}.`,
   };
 }
 

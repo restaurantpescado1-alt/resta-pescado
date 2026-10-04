@@ -12,4 +12,10 @@ export interface ActionResult {
   priceDa?: number;
   imageKey?: string | null;
   isFeatured?: boolean;
+  /**
+   * What a dish now shows instead of its photograph: the slug of its species
+   * illustration, or `text-only` when it has none. Lets the dashboard say what happened
+   * rather than leaving the owner to guess whether the fish drawing is now the photo.
+   */
+  fallback?: string;
 }

@@ -106,7 +106,8 @@ const SEED_SETTINGS = {
   addressFr: null,
   familyNoteFr: "Restaurant familial. Une chaise haute est disponible pour les enfants.",
   heroTitleFr: "Poissons et fruits de mer, préparés à Alger.",
-  heroSubtitleFr: "Une carte courte, révisée chaque jour.",
+  heroSubtitleFr:
+    "Consultez notre carte et appelez-nous pour commander, réserver une table ou demander une livraison.",
 } as const;
 
 export async function seed(): Promise<void> {
