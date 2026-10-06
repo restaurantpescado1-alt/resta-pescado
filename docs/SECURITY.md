@@ -7,6 +7,10 @@
 - Rate-limit login, reset, upload, and destructive actions.
 - Allow JPEG, PNG, and WebP only; verify MIME, signature, dimensions, size, and file completeness.
 - Random R2 keys; never expose write credentials to browsers.
+- Serve `/api/media/...` with per-request authorization: menu keys from an allow list, gallery
+  keys only through a visible `bundled_gallery_images` row or an owner session, everything else 404.
+- Read the client IP from `CF-Connecting-IP` only; `X-Forwarded-For` and `X-Real-IP` are trusted
+  only in local mode, and an unknown `DEPLOYMENT_MODE` falls back to the strict answer.
 - Upload replacement first, update D1 second, delete old object only after success.
 - Image removal: clear the reference and write the audit row atomically first, then delete
   the object. A failed commit keeps both the reference and the object. A failed delete after
@@ -50,10 +54,13 @@ sessions open elsewhere.
 - `signOut` is a server action, and its redirect is hard-coded. A caller-chosen redirect target
   would be an open redirect on an authenticated endpoint.
 - **No recovery exists.** Better Auth's signup is disabled and no email provider is configured, so
-  a forgotten password cannot be reset from the site or from a message. Recovery means running
-  `scripts/seed-local.ts`, or a password reset in the D1 console. This is a launch blocker for a
-  site with more than one person holding the credentials, and it is recorded rather than papered
-  over: adding a fake "mot de passe oublié" link would be worse than nothing.
+  a forgotten password cannot be reset from the site or from a message. Recovery means a password
+  reset in the D1 console — setting `account.password` to a `hashPassword` output. It is not
+  `npm run db:seed:remote` (content only, no account) and it is not
+  `npm run db:provision:owner`, which refuses to write to a database that already has an account
+  and so cannot be used to rotate one. This is a launch blocker for a site with more than one
+  person holding the credentials, and it is recorded rather than papered over: adding a fake
+  "mot de passe oublié" link would be worse than nothing.
 - **The session cookie after a change depends on `nextCookies()`.** `revokeOtherSessions` deletes
   the current session and issues a new one; if the new cookie is not carried back to the browser
   the owner is signed out by their own password change. See `docs/ARCHITECTURE.md`.

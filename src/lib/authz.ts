@@ -19,7 +19,20 @@ export { ADMIN_RATE_LIMITS, NotOwnerError } from "./admin-access";
  * reaches validation, D1, or R2.
  */
 async function loadOwnerProfile(): Promise<ProfileRow | null> {
-  const session = await getAuth().api.getSession({ headers: await headers() });
+  return getOwnerProfileFrom(await headers());
+}
+
+/**
+ * The owner behind an explicit set of request headers, or null.
+ *
+ * `loadOwnerProfile` reads Next's ambient request headers, which only exists
+ * while a page or action is rendering. `/api/media` is a Route Handler handed
+ * the `Request` itself and serves anonymous callers, so it resolves the session
+ * from those headers instead. Both paths end in the same `profiles` read, which
+ * is what keeps "who may do this" in one place.
+ */
+export async function getOwnerProfileFrom(requestHeaders: Headers): Promise<ProfileRow | null> {
+  const session = await getAuth().api.getSession({ headers: requestHeaders });
   if (!session) {
     return null;
   }

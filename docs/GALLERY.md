@@ -90,24 +90,28 @@ repository. The reference was removed rather than left pointing at a missing fil
 
 ## Initialising the bundled set in production, later
 
-The bundled photographs ship inside the repository, so production needs nothing: the same
-files are served. The question only arises if the bundled photographs are ever moved into R2
-alongside owner uploads, so that everything is editable without a deploy.
+The bundled photographs ship inside the repository, so production needs no R2 objects: the same
+files are served. It does need their `bundled_gallery_images` rows, because
+`/api/media/gallery/...` authorizes per request and fails closed — no visible row, no image.
+`npm run db:seed:remote` inserts them, one row per slug, `ON CONFLICT DO NOTHING`, so an owner's
+edits to alt text, captions, order and visibility survive a re-run exactly as this document's
+rules below require.
 
 Do **not** do that by running the local seed against production. `scripts/seed-local.ts`
 rewrites `site_settings` and deletes menu rows it does not recognise, and
 `scripts/local-db-guard.ts` refuses to run against a non-local path. That refusal is
 load-bearing.
 
-If bundled photographs ever need to become database rows, the intended shape is an
-append-only, idempotent migration of the same kind as `drizzle/`:
+If more bundled photographs are ever added, the intended shape is unchanged, and
+`db:seed:remote` already follows it:
 
-- insert a `gallery_images` row per bundled photograph, keyed on a stable id derived from
-  the slug, so re-running inserts nothing twice
+- insert a `bundled_gallery_images` row per bundled photograph, keyed on the manifest slug,
+  so re-running inserts nothing twice
 - `ON CONFLICT DO NOTHING`, never `DO UPDATE`: an owner who has since hidden or deleted a
   photograph keeps that decision
 - no `DELETE`, no truncation, no reconciliation of rows it did not create
-- run it as its own migration, not as part of the seed
+- run it through `db:seed:remote`, the insert-only path, never through `seed-local.ts`, whose
+  reset path deletes
 
 The rule underneath all of it: **owner-created production content is never overwritten or
 deleted by a script.** The seed's reset path is gated behind

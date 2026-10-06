@@ -32,9 +32,58 @@
     }
   ],
   "vars": {
-    "NEXTJS_ENV": "production"
+    "NEXTJS_ENV": "production",
+    "DEPLOYMENT_MODE": "production"
   },
   "observability": {
     "enabled": true
+  },
+  // Preview environment: a separate Worker with its own D1 database and R2
+  // bucket, so preview work never reads or writes production data.
+  //
+  // Fill in before any remote preview deploy (placeholders are deliberately
+  // unusable so an unfilled config fails closed):
+  //   - database_id: run `wrangler d1 create resta-pescado-preview-db` and paste
+  //     the returned ID here. Never copy the production database_id.
+  //     The placeholder must stay distinct from the top-level one: local wrangler
+  //     storage is keyed by database_id, so reusing it would point preview at the
+  //     production local database.
+  //   - bucket: run `wrangler r2 bucket create resta-pescado-preview-media`
+  //     (R2 bucket names are scoped to the Cloudflare account, not global).
+  //   - workers.dev: requires an account workers.dev subdomain to be configured.
+  //
+  // Cloudflare Access (to restrict who can reach the preview hostname) is
+  // configured in the dashboard or via the Cloudflare API, not from
+  // wrangler.jsonc; wrangler's `access` key only simulates Access in local dev.
+  "env": {
+    "preview": {
+      "name": "resta-pescado-preview",
+      "workers_dev": true,
+      "preview_urls": false,
+      "services": [
+        {
+          "binding": "WORKER_SELF_REFERENCE",
+          "service": "resta-pescado-preview"
+        }
+      ],
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "resta-pescado-preview-db",
+          "database_id": "00000000-0000-0000-0000-000000000002",
+          "migrations_dir": "drizzle"
+        }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "MEDIA",
+          "bucket_name": "resta-pescado-preview-media"
+        }
+      ],
+      "vars": {
+        "NEXTJS_ENV": "production",
+        "DEPLOYMENT_MODE": "preview"
+      }
+    }
   }
 }

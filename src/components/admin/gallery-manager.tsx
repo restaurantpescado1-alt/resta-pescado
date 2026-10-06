@@ -51,9 +51,17 @@ export function GalleryManager({
    * Saving on each move would bump the version of every photograph in the list on every tap,
    * which on a phone means a write per mis-tap, and each of those would make the row the owner
    * was about to edit look stale to them. One save for the whole order, instead.
+   *
+   * Ids, not rows. `run()` re-reads the page after every write and the rows are rendered from
+   * that re-read, so an upload appears as soon as it lands and a deleted photograph leaves,
+   * while the moves below stay local until they are saved. Holding the rows here instead would
+   * freeze the lists at the state they were seeded with: `router.refresh()` hands down new
+   * props and deliberately keeps client state.
    */
-  const [bundledOrder, setBundledOrder] = useState(() => [...initialBundled]);
-  const [uploadedOrder, setUploadedOrder] = useState(() => [...initialUploaded]);
+  const [bundledSlugs, setBundledSlugs] = useState(() => initialBundled.map((image) => image.slug));
+  const [uploadedIds, setUploadedIds] = useState(() => initialUploaded.map((image) => image.id));
+  const bundled = order(bundledSlugs, initialBundled, (image) => image.slug);
+  const uploaded = order(uploadedIds, initialUploaded, (image) => image.id);
 
   /*
    * Bumped on a successful upload so the file input empties itself.
@@ -87,16 +95,16 @@ export function GalleryManager({
       <section>
         <SectionHeading
           title="Photographies du restaurant"
-          count={bundledOrder.length}
+          count={bundled.length}
           description="Ces fichiers sont livrés avec le site. Vous pouvez changer leur description et leur ordre, et masquer ceux que vous ne voulez pas montrer. Ils ne peuvent pas être supprimés."
         />
 
-        {bundledOrder.length === 0 ? (
+        {bundled.length === 0 ? (
           <p className="mt-4 text-sm text-ink-soft">Aucune photographie.</p>
         ) : (
           <>
             <ul className="mt-4 space-y-4">
-              {bundledOrder.map((image, index) => (
+              {bundled.map((image, index) => (
                 <li key={image.slug} data-testid={`bundled-${image.slug}`}>
                   <BundledRow
                     image={image}
@@ -106,9 +114,11 @@ export function GalleryManager({
                   <MoveButtons
                     label={image.altTextFr}
                     index={index}
-                    total={bundledOrder.length}
+                    total={bundled.length}
                     disabled={isPending}
-                    onMove={(direction) => setBundledOrder(move(bundledOrder, index, direction))}
+                    onMove={(direction) =>
+                      setBundledSlugs(move(bundled, index, direction).map((moved) => moved.slug))
+                    }
                   />
                 </li>
               ))}
@@ -119,7 +129,7 @@ export function GalleryManager({
                 type="button"
                 disabled={isPending}
                 data-testid="bundled-order-save"
-                onClick={() => run(() => reorderBundledGalleryAction({ slugs: bundledOrder.map((i) => i.slug) }))}
+                onClick={() => run(() => reorderBundledGalleryAction({ slugs: bundled.map((i) => i.slug) }))}
                 className="rounded border border-line-strong px-3 py-2 text-sm font-semibold text-marine transition-colors hover:bg-sand disabled:opacity-60"
               >
                 Enregistrer l&apos;ordre
@@ -133,18 +143,18 @@ export function GalleryManager({
       <section>
         <SectionHeading
           title="Photographies ajoutées"
-          count={uploadedOrder.length}
+          count={uploaded.length}
           description="Vos propres photos. Elles sont visibles sur la page galerie et peuvent être supprimées."
         />
 
-        {uploadedOrder.length === 0 ? (
+        {uploaded.length === 0 ? (
           <p className="mt-4 text-sm text-ink-soft" data-testid="uploads-empty">
             Vous n&apos;avez pas encore ajouté de photographie.
           </p>
         ) : (
           <>
             <ul className="mt-4 space-y-4">
-              {uploadedOrder.map((image, index) => (
+              {uploaded.map((image, index) => (
                 <li key={image.id} data-testid={`uploaded-${image.id}`}>
                   <UploadedRow
                     image={image}
@@ -171,9 +181,11 @@ export function GalleryManager({
                   <MoveButtons
                     label={image.altTextFr}
                     index={index}
-                    total={uploadedOrder.length}
+                    total={uploaded.length}
                     disabled={isPending}
-                    onMove={(direction) => setUploadedOrder(move(uploadedOrder, index, direction))}
+                    onMove={(direction) =>
+                      setUploadedIds(move(uploaded, index, direction).map((moved) => moved.id))
+                    }
                   />
                 </li>
               ))}
@@ -185,7 +197,7 @@ export function GalleryManager({
                 disabled={isPending}
                 data-testid="uploads-order-save"
                 onClick={() =>
-                  run(() => reorderGalleryAction({ galleryImageIds: uploadedOrder.map((i) => i.id) }))
+                  run(() => reorderGalleryAction({ galleryImageIds: uploaded.map((i) => i.id) }))
                 }
                 className="rounded border border-line-strong px-3 py-2 text-sm font-semibold text-marine transition-colors hover:bg-sand disabled:opacity-60"
               >
@@ -236,6 +248,62 @@ function move<T>(list: readonly T[], index: number, direction: -1 | 1): T[] {
   const [moved] = next.splice(index, 1);
   next.splice(target, 0, moved as T);
   return next;
+}
+
+/**
+ * Brings a locally edited list back in line with the server's copy of it.
+ *
+ * Row data always comes from the server, because each save sends the row's
+ * `expectedVersion` and a version the server has already moved past is refused as a stale
+ * write. The order is a separate question: moves are held locally until the owner saves
+ * them, so adopting the server's order for an edit made somewhere else would throw away
+ * moves they have not committed yet. Membership is what decides: the same photographs
+ * means keep this order and refresh the rows behind it, a different set means the server
+ * knows photographs this client does not — an upload, or a deletion — and its list wins
+ * whole.
+ */
+/**
+ * The photographs to render: the server's rows, ordered by the ids held locally.
+ *
+ * The rows are always the server's, so every save is visible as soon as `run()` re-reads the
+ * page — an upload appears, a deleted photograph leaves, and each row carries the
+ * `expectedVersion` the server will accept next, rather than one frozen at the state the page
+ * arrived in. Only the order comes from the client.
+ *
+ * A local order that already matches the server's is not an order at all, so the server wins
+ * outright and a photograph uploaded since the page loaded lands where the server put it. Once
+ * the owner has moved something, their order is what counts, and a photograph the server has
+ * that this order does not know about is appended — it has no place in a sequence the owner is
+ * rearranging, and the next save of the order puts it there.
+ */
+function order<T>(ids: readonly string[], server: readonly T[], id: (item: T) => string): T[] {
+  const byId = new Map(server.map((image) => [id(image), image]));
+
+  // The local order, minus photographs the server no longer has and ids repeated by mistake.
+  const seen = new Set<string>();
+  const kept: string[] = [];
+  for (const key of ids) {
+    if (byId.has(key) && !seen.has(key)) {
+      seen.add(key);
+      kept.push(key);
+    }
+  }
+
+  const serverIds = server.map(id);
+  const localMatchesServer =
+    kept.length === serverIds.length && kept.every((key, index) => key === serverIds[index]);
+
+  if (localMatchesServer) {
+    return [...server];
+  }
+
+  const rows = kept.map((key) => byId.get(key) as T);
+  for (const image of server) {
+    if (!seen.has(id(image))) {
+      rows.push(image);
+    }
+  }
+  return rows;
 }
 
 /**

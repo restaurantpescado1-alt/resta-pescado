@@ -67,9 +67,12 @@ function createAuth() {
       // bucket. The first few requests then succeed and everything after them is
       // 429'd, which made the end-to-end suite fail depending on test order.
       //
-      // The list itself comes from `@/lib/auth-ip`: production trusts only
-      // `CF-Connecting-IP`, which Cloudflare overwrites on every request, so a
-      // caller cannot choose the header that decides its own bucket.
+      // The list itself comes from `@/lib/auth-ip`: production and preview trust
+      // only `CF-Connecting-IP`, which Cloudflare overwrites on every request, so
+      // a caller cannot choose the header that decides its own bucket. The choice
+      // is driven by `DEPLOYMENT_MODE`, not `NODE_ENV`, because the Worker leaves
+      // `NODE_ENV` undefined and the old check therefore picked the local,
+      // caller-controlled headers in production.
       ipAddress: {
         ipAddressHeaders: trustedIpHeaders(),
       },

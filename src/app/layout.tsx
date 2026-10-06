@@ -3,7 +3,9 @@ import type { Metadata } from "next";
 import { MobileActions } from "@/components/mobile-actions";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { resolveDeploymentMode } from "@/lib/auth-ip";
 import { loadPublicSettings, type PublicSettings } from "@/lib/public-site";
+import { robotsMetadata } from "@/lib/search-indexing";
 
 import "./globals.css";
 
@@ -13,6 +15,10 @@ export const metadata: Metadata = {
     template: "%s — Resta Pescado",
   },
   description: "Poissons et fruits de mer, préparés à Alger.",
+  // Read from the environment when this module loads in the Worker, so the same
+  // build ships `index, follow` to production and `noindex, nofollow` to the
+  // preview host without a second build. Every page renders under this layout.
+  robots: robotsMetadata(resolveDeploymentMode()),
 };
 
 /**

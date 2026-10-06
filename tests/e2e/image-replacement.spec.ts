@@ -201,8 +201,13 @@ test.describe("image replacement", () => {
 });
 
 test.describe("media route", () => {
-  test("rejects a key outside the menu namespace", async ({ request }) => {
-    const response = await request.get("/api/media/gallery/2026/some-key.png");
+  test("rejects a key outside the menu and gallery namespaces", async ({ request }) => {
+    const response = await request.get("/api/media/secrets/2026/7d4a4a1e-2f6b-4f4a-9c3d-1b2a3c4d5e6f.png");
+    expect(response.status()).toBe(404);
+  });
+
+  test("rejects a gallery key no photograph was ever uploaded under", async ({ request }) => {
+    const response = await request.get("/api/media/gallery/2026/00000000-0000-4000-8000-000000000000.png");
     expect(response.status()).toBe(404);
   });
 

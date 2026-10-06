@@ -278,6 +278,25 @@ export async function getPublicGalleryImages(db: Database): Promise<GalleryImage
     .orderBy(asc(galleryImages.sortOrder), asc(galleryImages.altTextFr));
 }
 
+/**
+ * The gallery row an object key points at, whatever its visibility.
+ *
+ * `/api/media` needs this for an authorization decision, not for rendering:
+ * a key is servable to an anonymous caller only when the row behind it says
+ * `isVisible`. Returning the row rather than a boolean keeps the caller in
+ * charge of the policy, and returning null for a key with no row is what makes
+ * an orphaned or guessed key a 404 instead of a lookup miss that still serves
+ * bytes.
+ */
+export async function findGalleryImageByKey(db: Database, imageKey: string): Promise<GalleryImageRow | null> {
+  const rows = await db
+    .select()
+    .from(galleryImages)
+    .where(eq(galleryImages.imageKey, imageKey))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
 /** Most recent first. Owner-only view. */
 export async function listAuditLogs(db: Database, limit = 50): Promise<AuditLogRow[]> {
   return db.select().from(auditLogs).orderBy(sql`${auditLogs.createdAt} desc`).limit(limit);

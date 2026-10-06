@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { ADMIN_RATE_LIMITS, NotOwnerError } from "../../src/lib/admin-access";
-import { LOCAL_IP_HEADERS, PRODUCTION_IP_HEADER, trustedIpHeaders } from "../../src/lib/auth-ip";
+import { LOCAL_IP_HEADERS, PRODUCTION_IP_HEADER, resolveDeploymentMode, trustedIpHeaders } from "../../src/lib/auth-ip";
 import { DEFAULT_OWNER_REDIRECT, loginUrlFor, safeRedirectPath } from "../../src/lib/redirects";
 import { formatPrice, mediaUrl } from "../../src/lib/format";
 import { R2_KEY_PATTERN } from "../../src/lib/validation";
@@ -86,29 +86,72 @@ describe("admin rate limits", () => {
   });
 });
 
+describe("deployment mode", () => {
+  const env = (values: Record<string, string | undefined>) => values as unknown as NodeJS.ProcessEnv;
+
+  it("reads the mode from the Wrangler var when it is set", () => {
+    expect(resolveDeploymentMode(env({ DEPLOYMENT_MODE: "preview" }))).toBe("preview");
+    expect(resolveDeploymentMode(env({ DEPLOYMENT_MODE: "local" }))).toBe("local");
+    expect(resolveDeploymentMode(env({ DEPLOYMENT_MODE: "production" }))).toBe("production");
+  });
+
+  it("treats an unrecognised mode as production rather than local", () => {
+    // A typo such as `DEPLOYMENT_MODE=lcal` must not silently relax the policy.
+    expect(resolveDeploymentMode(env({ DEPLOYMENT_MODE: "lcal" }))).toBe("production");
+    expect(resolveDeploymentMode(env({ DEPLOYMENT_MODE: "" }))).toBe("production");
+  });
+
+  it("falls back to NODE_ENV only when the Wrangler var is absent", () => {
+    expect(resolveDeploymentMode(env({ NODE_ENV: "development" }))).toBe("local");
+    expect(resolveDeploymentMode(env({ NODE_ENV: "production" }))).toBe("production");
+  });
+
+  it("fails closed when nothing is set", () => {
+    // The Worker leaves `NODE_ENV` undefined. Selecting the local headers here
+    // is what made the production rate limit spoofable.
+    expect(resolveDeploymentMode(env({}))).toBe("production");
+  });
+});
+
 describe("trusted client IP headers", () => {
-  const production = { NODE_ENV: "production" } as unknown as NodeJS.ProcessEnv;
-  const local = { NODE_ENV: "development" } as unknown as NodeJS.ProcessEnv;
+  const env = (values: Record<string, string | undefined>) => values as unknown as NodeJS.ProcessEnv;
+  const production = env({ DEPLOYMENT_MODE: "production" });
+  const preview = env({ DEPLOYMENT_MODE: "preview" });
+  const local = env({ DEPLOYMENT_MODE: "local" });
 
   it("trusts only CF-Connecting-IP in production", () => {
     expect(trustedIpHeaders(production)).toEqual([PRODUCTION_IP_HEADER]);
   });
 
-  it("never trusts X-Forwarded-For or X-Real-IP in production", () => {
+  it("trusts only CF-Connecting-IP in preview, which is also behind Cloudflare", () => {
+    expect(trustedIpHeaders(preview)).toEqual([PRODUCTION_IP_HEADER]);
+  });
+
+  it("never trusts X-Forwarded-For or X-Real-IP outside local mode", () => {
     // These are attacker-controlled unless something upstream guarantees them, so
     // trusting them in production would let anyone sidestep a rate limit by
     // setting a header.
-    expect(trustedIpHeaders(production)).not.toContain("X-Forwarded-For");
-    expect(trustedIpHeaders(production)).not.toContain("X-Real-IP");
+    for (const mode of [production, preview, env({}), env({ NODE_ENV: "production" })]) {
+      expect(trustedIpHeaders(mode)).toEqual([PRODUCTION_IP_HEADER]);
+    }
   });
 
-  it("trusts the local proxy headers outside production", () => {
-    // Local dev reaches the app through a dev server, so `127.0.0.1` alone would
-    // put every developer on one shared rate-limit bucket.
-    expect(trustedIpHeaders(local)).toEqual([...LOCAL_IP_HEADERS]);
+  it("trusts the local proxy headers in local mode", () => {
+    expect(trustedIpHeaders(local)).toEqual([...LOCAL_IP_HEADERS, PRODUCTION_IP_HEADER]);
   });
 
-  it("defaults to the local headers when NODE_ENV is unset", () => {
-    expect(trustedIpHeaders({} as NodeJS.ProcessEnv)).toEqual([...LOCAL_IP_HEADERS]);
+  it("still resolves an address in local mode when no proxy header is present", () => {
+    // Better Auth falls back to one shared bucket when no trusted header
+    // resolves, and miniflare always sets CF-Connecting-IP even though nothing
+    // sets X-Forwarded-For.
+    expect(trustedIpHeaders(local)).toContain(PRODUCTION_IP_HEADER);
+    expect(trustedIpHeaders(local).at(-1)).toBe(PRODUCTION_IP_HEADER);
+  });
+
+  it("keeps local headers available to next dev, which has no Wrangler vars", () => {
+    expect(trustedIpHeaders(env({ NODE_ENV: "development" }))).toEqual([
+      ...LOCAL_IP_HEADERS,
+      PRODUCTION_IP_HEADER,
+    ]);
   });
 });

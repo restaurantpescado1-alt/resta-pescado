@@ -14,6 +14,7 @@ import {
 } from "./migrate";
 import { assertSeedIsSafe, DELETE_OPT_IN_ENV, isDestructiveResetAllowed } from "./local-db-guard";
 import { APPROVED_CATEGORIES, APPROVED_MENU, allApprovedItems } from "./approved-menu";
+import { SEED_DELIVERY, SEED_SETTINGS } from "./site-settings";
 import { listBundledGalleryImages } from "../src/lib/gallery-images";
 import * as schema from "../src/db/schema";
 
@@ -84,40 +85,9 @@ async function findLocalD1File(): Promise<string> {
 }
 
 /**
- * Owner-confirmed delivery settings.
- *
- * Delivery is arranged and paid for by phone rather than online, so each field is
- * the owner's own statement. Every string below is a confirmed fact and nothing
- * more: no zone list, no fee amount, and no opening hours are invented, because
- * `docs/CONTENT_POLICY.md` rules out stating anything the owner has not confirmed.
+ * Owner-confirmed delivery and site settings live in `scripts/site-settings.ts`,
+ * shared with the remote seed so the two cannot drift apart.
  */
-const SEED_DELIVERY = {
-  enabled: true,
-  zones:
-    "La zone de livraison est confirmée par téléphone après avoir communiqué votre adresse.",
-  fee: "Les frais de livraison sont communiqués par téléphone.",
-  minimumOrder: "Il n'y a pas de commande minimum.",
-  hours: "Les heures de livraison sont les mêmes que les heures d'ouverture du restaurant.",
-  ordering: "Commande et livraison par téléphone au 0540559967. La livraison est payante.",
-} as const;
-
-/**
- * Owner-confirmed site settings.
- *
- * Every string below is a confirmed fact and nothing more. `addressFr` is
- * deliberately `null`: the address was never confirmed, and the policy forbids
- * printing a guess. The site renders a map link instead, which needs no address.
- */
-const SEED_SETTINGS = {
-  phoneFr: "0540559967",
-  hoursFr: "Ouvert tous les jours ouvrables de 11h15 à 15h15. Fermé le vendredi.",
-  mapsUrl: "https://maps.app.goo.gl/n3cMmMpeXeLDsQtY6",
-  addressFr: null,
-  familyNoteFr: "Restaurant familial. Une chaise haute est disponible pour les enfants.",
-  heroTitleFr: "Poissons et fruits de mer, préparés à Alger.",
-  heroSubtitleFr:
-    "Consultez notre carte et appelez-nous pour commander, réserver une table ou demander une livraison.",
-} as const;
 
 export async function seed(): Promise<void> {
   const ownerEmail = requireEnv("OWNER_EMAIL");
