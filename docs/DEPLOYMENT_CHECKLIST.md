@@ -154,6 +154,13 @@ Then, against the real origin:
 
 ## 6. After deploying
 
+- [ ] Run the read-only smoke test against the real origin:
+      `npm run smoke:preview -- --url <origin>` — it automates the §5 checks that can be automated
+      (routes, confirmed facts, approved menu, preview `noindex`, signed-out admin, image decoding,
+      390 px overflow, console and network errors) and stops with a distinct exit code (2) if the
+      origin sits behind Cloudflare Access. See `docs/MANUAL_ACCEPTANCE_CHECKLIST.md` for the manual
+      steps that still need a human (owner login, a price change appearing without redeployment, and
+      so on).
 - [ ] Run `npm run test:e2e` against the deployed origin if the suite is configured to allow it, or
       re-run the checklist in §5 by hand. Do not assume the local run covers the remote bindings.
 - [ ] Confirm the audit list shows the smoke-test changes, then decide whether they should stay.

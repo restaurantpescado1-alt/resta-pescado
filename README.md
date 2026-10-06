@@ -55,6 +55,7 @@ dish's price and image so the end-to-end suite starts from a known state.
 | `npm run db:migrate:local` | Applies migrations to the local D1 database. |
 | `npm run db:seed:local` | Seeds the local owner, category, dish, and image. |
 | `npm run cf-typegen` | Regenerates `cloudflare-env.d.ts` from `wrangler.jsonc`. |
+| `npm run smoke:preview` | Read-only live-preview smoke test against a *deployed* Cloudflare preview. See "Preview verification" below. |
 
 ## End-to-end notes
 
@@ -73,6 +74,28 @@ reports as "wrong credentials".
 OpenNext is not fully supported on Windows. `preview` and `build:cf` work, but a stale
 `workerd` process holding port 8787 will serve an old build, and can lock `.open-next`
 with `EPERM`. Kill it before rebuilding.
+
+## Preview verification
+
+Once a Cloudflare preview is deployed (D1, R2, and the workers.dev hostname exist and
+the databases are seeded), check it without touching it:
+
+```bash
+npm run smoke:preview -- --url https://resta-pescado-preview.<account>.workers.dev
+```
+
+The command is read-only: it checks the five public pages, the confirmed facts and
+approved menu, preview `noindex`, signed-out admin protection, image decoding, 390px
+overflow, and console/network errors. It refuses loopback hosts and production-looking
+targets unless `--allow-production` is passed on purpose, and a preview behind Cloudflare
+Access is reported as blocked at the edge (exit code 2) rather than broken. It never
+stores an Access cookie or Playwright auth state.
+
+The human counterpart — the owner's manual acceptance run and the exact steps to undo its
+changes — lives in `docs/MANUAL_ACCEPTANCE_CHECKLIST.md`, and the short owner training
+guide in `docs/GUIDE_FORMATION_PROPRIETAIRE.md`. The smoke test, not `test:e2e`, is the
+verification used against a *deployed* preview: `test:e2e` builds and boots a local
+Worker and expects local D1/R2.
 
 ## Deployment
 

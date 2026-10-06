@@ -30,6 +30,7 @@
     "db:provision:owner": "tsx scripts/provision-owner.ts",
     "images:fish": "tsx scripts/process-fish-images.ts",
     "images:gallery": "tsx scripts/process-gallery-images.ts",
+    "smoke:preview": "tsx scripts/preview-smoke.ts",
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install chromium"
   },
