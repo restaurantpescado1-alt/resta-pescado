@@ -9,7 +9,7 @@ Everything below has been run or read on the machine that produced it; nothing i
 | --- | --- |
 | `npm run lint` | passes, `eslint .` over `src`, `tests`, `scripts`, config |
 | `npm run typecheck` | passes, `tsc --noEmit`, strict |
-| `npm run test` | 14 files, 295 tests, all passing |
+| `npm run test` | 15 files, 312 tests, all passing |
 | `npm run test:e2e` | 101 passed, 2 skipped (both screenshot captures, `CAPTURE_SCREENSHOTS` unset) |
 | `npm run build` | passes; every route listed, `admin` and `api/media` among them |
 | `npm run build:cf` | passes; OpenNext emits `.open-next/worker.js` |
@@ -17,7 +17,7 @@ Everything below has been run or read on the machine that produced it; nothing i
 | Local migrations | `0000`–`0002` applied with `--local` |
 | Local seed | 5 categories, 34 dishes, 15 species references, 7 bundled photographs, 0 uploads |
 | Phase 3 migration | creates the version/token columns, `bundled_gallery_images`, captions |
-| Remote scripts (dry run) | `db:seed:remote` and `db:provision:owner` print their SQL, execute nothing without `--apply` |
+| Remote scripts (dry run) | `db:seed:remote` and `db:provision:owner` print their SQL, execute nothing without `--apply`; the owner dry run is a redacted review, and its real SQL is written only to a temporary file outside the project that is deleted when the run ends |
 
 All seven gates ran on this tree, in the order of `docs/DEPLOYMENT_CHECKLIST.md` §2, immediately
 before the commit that carries Phase 4. One failure was found and fixed rather than skipped:
@@ -34,8 +34,10 @@ now runs first in §2 for the same reason: `typecheck` and `build` read what it 
 `npm run db:seed:remote` and `npm run db:provision:owner` now create the menu, the settings, the
 gallery manifest and the owner account on any environment, dry-run by default, with no default
 environment, and with the owner script refusing to write anything if an account already exists.
-Their SQL is tested against real SQLite with the real migrations: idempotent, insert-only, and
-non-destructive against owner edits (`tests/unit/remote-init.test.ts`).
+The owner password is read at apply time from a masked prompt, typed twice; only its
+`hashPassword` output is written, to a temporary file outside the project that is removed when
+the run ends. Their SQL is tested against real SQLite with the real migrations: idempotent,
+insert-only, and non-destructive against owner edits (`tests/unit/remote-init.test.ts`).
 
 What is still open is the first `--apply`: creating remote resources and running remote commands is
 deliberately outside what was verified here, so the preview and production databases have not been

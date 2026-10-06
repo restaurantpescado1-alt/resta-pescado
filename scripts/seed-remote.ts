@@ -142,7 +142,13 @@ export async function runSeedRemote(argv: string[]): Promise<void> {
   const args = parseRemoteArgs(argv);
 
   if (args.help) {
-    console.log(usageFor("npm run db:seed:remote --", ["Nothing is executed without --apply."]));
+    console.log(
+      usageFor("npm run db:seed:remote --", [
+        "The apply writes its SQL under the gitignored .wrangler/ (remote-content.sql)",
+        "and leaves it there for review or a manual re-run.",
+        "Nothing is executed without --apply.",
+      ]),
+    );
     return;
   }
 

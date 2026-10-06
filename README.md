@@ -79,5 +79,7 @@ with `EPERM`. Kill it before rebuilding.
 `npm run deploy` builds and deploys through OpenNext. Phase 1 is not deployed: the D1 and
 R2 bindings and the `BETTER_AUTH_SECRET` have to exist in the target account first. The content
 and the owner account are provisioned from this repository with `npm run db:seed:remote` and
-`npm run db:provision:owner` — both dry-run by default and explicit about the environment — as
-`docs/DEPLOYMENT_CHECKLIST.md` §3 describes.
+`npm run db:provision:owner` - both dry-run by default and explicit about the environment. The
+owner script reads its password from a masked prompt, never from an environment variable, and
+writes its SQL only to a temporary file outside the project that is deleted when the run ends.
+`docs/DEPLOYMENT_CHECKLIST.md` §3 has the exact commands.

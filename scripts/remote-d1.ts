@@ -92,8 +92,9 @@ export function usageFor(script: string, extra: string[]): string {
     `Usage: ${script} --env preview|production [--apply]`,
     "",
     "  Without --apply the generated SQL is printed and nothing is executed.",
-    "  With --apply it is written to .wrangler/ and executed against the remote",
-    "  D1 database named for that environment in wrangler.jsonc.",
+    "  With --apply it is executed against the remote D1 database named for that",
+    "  environment in wrangler.jsonc. Each script's help below says where its",
+    "  generated file lives.",
     "",
     ...extra,
   ].join("\n");

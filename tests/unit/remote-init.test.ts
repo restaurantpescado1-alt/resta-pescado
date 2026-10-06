@@ -1,19 +1,28 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { verifyPassword } from "better-auth/crypto";
+import { hashPassword, verifyPassword } from "better-auth/crypto";
 import Database from "better-sqlite3";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { APPROVED_CATEGORIES, APPROVED_MENU } from "../../scripts/approved-menu";
 import { applyMigrations } from "../../scripts/migrate";
 import {
   MIN_PASSWORD_LENGTH,
+  OWNER_SQL_FILE,
   OwnerAlreadyExistsError,
+  REDACTED_PLACEHOLDER,
   assertPasswordUsable,
   buildOwnerSql,
   existingOwnerCommand,
+  ownerStatements,
+  redactSecrets,
+  renderOwnerSqlForReview,
+  runProvisionOwner,
+  warnIfPasswordIsInEnvironment,
+  withTemporarySqlFile,
 } from "../../scripts/provision-owner";
 import { executeFileArgs, parseQueryJson, parseRemoteArgs } from "../../scripts/remote-d1";
 import { buildContentSql, CONTENT_SQL_FILE } from "../../scripts/seed-remote";
@@ -27,7 +36,7 @@ import { listBundledGalleryImages } from "../../src/lib/gallery-images";
  *
  * "Non-destructive" is a claim about behaviour under repetition, so it cannot be
  * asserted by reading the statement text alone. Each test below seeds, edits a
- * row the way an owner would, seeds again, and checks the edit survived — which
+ * row the way an owner would, seeds again, and checks the edit survived â which
  * is the property a remote initializer either has or has not.
  */
 
@@ -138,7 +147,7 @@ describe("wrangler query output", () => {
   });
 
   it("reads rows even with log lines printed before the JSON", () => {
-    const stdout = "🌀 Executing on remote database\n" + JSON.stringify([{ results: [] }]);
+    const stdout = "ð Executing on remote database\n" + JSON.stringify([{ results: [] }]);
     expect(parseQueryJson(stdout).rows).toEqual([]);
   });
 
@@ -237,7 +246,7 @@ describe("content SQL", () => {
       native.prepare("SELECT id FROM menu_items ORDER BY id LIMIT 1").get() as { id: string }
     ).id;
     native
-      .prepare("UPDATE menu_items SET price_da = 999, name_fr = 'Renommée par le propriétaire', is_visible = 0 WHERE id = ?")
+      .prepare("UPDATE menu_items SET price_da = 999, name_fr = 'RenommÃ©e par le propriÃ©taire', is_visible = 0 WHERE id = ?")
       .run(dishId);
     native
       .prepare(
@@ -245,7 +254,7 @@ describe("content SQL", () => {
       )
       .run();
     native.prepare("UPDATE site_settings SET phone_fr = '0000000000' WHERE id = 'singleton'").run();
-    native.prepare("UPDATE bundled_gallery_images SET is_visible = 0, caption_fr = 'Légende'").run();
+    native.prepare("UPDATE bundled_gallery_images SET is_visible = 0, caption_fr = 'LÃ©gende'").run();
 
     native.exec(sql);
 
@@ -254,7 +263,7 @@ describe("content SQL", () => {
       name_fr: string;
       is_visible: number;
     };
-    expect(dish).toEqual({ price_da: 999, name_fr: "Renommée par le propriétaire", is_visible: 0 });
+    expect(dish).toEqual({ price_da: 999, name_fr: "RenommÃ©e par le propriÃ©taire", is_visible: 0 });
 
     const extra = native.prepare("SELECT name_fr FROM menu_items WHERE id = 'owner-added'").get();
     expect(extra).toEqual({ name_fr: "Plat du jour" });
@@ -268,7 +277,7 @@ describe("content SQL", () => {
       .prepare("SELECT is_visible, caption_fr FROM bundled_gallery_images ORDER BY slug")
       .all() as Array<{ is_visible: number; caption_fr: string | null }>;
     expect(bundled.every((row) => row.is_visible === 0)).toBe(true);
-    expect(bundled.every((row) => row.caption_fr === "Légende")).toBe(true);
+    expect(bundled.every((row) => row.caption_fr === "LÃ©gende")).toBe(true);
 
     native.close();
   });
@@ -280,7 +289,7 @@ describe("owner provisioning SQL", () => {
 
   it("hashes the password instead of writing it", async () => {
     const native = migratedDatabase();
-    native.exec(await buildOwnerSql({ email, name: "Propriétaire", password }));
+    native.exec(await buildOwnerSql({ email, name: "PropriÃ©taire", password }));
 
     const account = native
       .prepare("SELECT password FROM account WHERE provider_id = 'credential'")
@@ -306,10 +315,10 @@ describe("owner provisioning SQL", () => {
 
   it("cannot be run twice: the second run fails instead of minting a second account", async () => {
     const native = migratedDatabase();
-    native.exec(await buildOwnerSql({ email, name: "Propriétaire", password }));
+    native.exec(await buildOwnerSql({ email, name: "PropriÃ©taire", password }));
 
     await expect(async () => {
-      native.exec(await buildOwnerSql({ email, name: "Propriétaire", password }));
+      native.exec(await buildOwnerSql({ email, name: "PropriÃ©taire", password }));
     }).rejects.toThrow(/UNIQUE/i);
 
     expect((native.prepare("SELECT count(*) AS c FROM user").get() as { c: number }).c).toBe(1);
@@ -328,7 +337,7 @@ describe("owner provisioning SQL", () => {
   });
 
   it("refuses a password Better Auth would refuse at sign-in", () => {
-    expect(() => assertPasswordUsable("too-short")).toThrow(/OWNER_PASSWORD/);
+    expect(() => assertPasswordUsable("too-short")).toThrow(/password you entered/i);
     expect(() => assertPasswordUsable("exactly-12-chars")).not.toThrow();
 
     // The two numbers must stay equal, or a password can be accepted here and
@@ -341,5 +350,155 @@ describe("owner provisioning SQL", () => {
 
   it("writes its SQL under a name the repository ignores", () => {
     expect(CONTENT_SQL_FILE).toMatch(/\.sql$/);
+  });
+});
+
+describe("owner provisioning keeps its secret out of the project", () => {
+  const email = "owner@example.test";
+  const name = "Propriétaire";
+
+  /** The shape `hashPassword` produces: 32 hex chars, colon, 128 hex chars. */
+  const SCRYPT_SHAPED = /[0-9a-f]{32}:[0-9a-f]{128}/i;
+
+  it("the review copy a dry run prints contains no hash", async () => {
+    const realHash = await hashPassword("a-sufficiently-long-password");
+    const review = renderOwnerSqlForReview({ email, name });
+
+    expect(review).toContain(REDACTED_PLACEHOLDER);
+    expect(review).not.toContain(realHash);
+    expect(review).not.toMatch(SCRYPT_SHAPED);
+    expect(review).toContain("INSERT INTO user");
+    expect(review).toContain("INSERT INTO account");
+    expect(review).toContain("INSERT INTO profiles");
+    expect(review).toContain(email);
+  });
+
+  it("redactSecrets scrubs a real hash out of text headed for a terminal", async () => {
+    const realHash = await hashPassword("a-sufficiently-long-password");
+    const statements = ownerStatements(email, name, realHash).join("\n");
+    expect(statements).toContain(realHash);
+
+    const scrubbed = redactSecrets(`wrangler failed:\n${statements}`, [realHash]);
+    expect(scrubbed).not.toContain(realHash);
+    expect(scrubbed).toContain(REDACTED_PLACEHOLDER);
+    expect(scrubbed).toContain("wrangler failed");
+    // A second secret is scrubbed independently, and absent secrets are ignored.
+    expect(redactSecrets("abc", ["b", undefined])).toBe("a" + REDACTED_PLACEHOLDER + "c");
+  });
+
+  it("writes its SQL under the OS temporary directory and removes it afterwards", () => {
+    let seenPath = "";
+
+    const result = withTemporarySqlFile(OWNER_SQL_FILE, "SELECT 1;", (filePath) => {
+      seenPath = filePath;
+      expect(existsSync(filePath)).toBe(true);
+      const resolved = path.resolve(filePath);
+      expect(resolved.startsWith(path.resolve(os.tmpdir()))).toBe(true);
+      expect(resolved.startsWith(path.resolve(REPO_ROOT))).toBe(false);
+      expect(resolved).not.toContain(".wrangler");
+      return "done";
+    });
+
+    expect(result).toBe("done");
+    expect(seenPath).not.toBe("");
+    expect(existsSync(seenPath)).toBe(false);
+    expect(existsSync(path.dirname(seenPath))).toBe(false);
+  });
+
+  it("removes the temporary file even when the apply throws", () => {
+    let seenPath = "";
+
+    expect(() =>
+      withTemporarySqlFile(OWNER_SQL_FILE, "INSERT INTO user ...", (filePath) => {
+        seenPath = filePath;
+        expect(existsSync(filePath)).toBe(true);
+        throw new Error("apply failed");
+      }),
+    ).toThrow("apply failed");
+
+    expect(seenPath).not.toBe("");
+    expect(existsSync(seenPath)).toBe(false);
+    expect(existsSync(path.dirname(seenPath))).toBe(false);
+  });
+
+  it("applies restrictive file permissions where the platform supports them", () => {
+    if (process.platform === "win32") {
+      // POSIX modes have no meaning on Windows; mkdtemp still creates the
+      // directory user-only where the concept exists. This is the "where
+      // supported" part of the contract.
+      return;
+    }
+    withTemporarySqlFile(OWNER_SQL_FILE, "SELECT 1;", (filePath) => {
+      expect(statSync(filePath).mode & 0o777).toBe(0o600);
+    });
+  });
+
+  it("warns about a password variable without echoing its value", () => {
+    expect(warnIfPasswordIsInEnvironment({})).toBeNull();
+    expect(warnIfPasswordIsInEnvironment({ OWNER_PASSWORD: "" })).toBeNull();
+
+    const warning = warnIfPasswordIsInEnvironment({ OWNER_PASSWORD: "super-secret-value-xyz" });
+    expect(warning).toMatch(/never reads it/);
+    expect(warning).toContain(".dev.vars");
+    expect(warning).not.toContain("super-secret-value-xyz");
+  });
+
+  it("takes the password from a prompt, never from the environment or a file", () => {
+    const source = readFileSync(path.join(REPO_ROOT, "scripts", "provision-owner.ts"), "utf8");
+
+    expect(source).not.toContain('requireEnv("OWNER_PASSWORD")');
+    expect(source).not.toContain("process.env.OWNER_PASSWORD");
+    expect(source).not.toContain("writeSqlFile");
+    expect(source).toContain("promptForNewPassword");
+    expect(source).toContain("withTemporarySqlFile");
+    expect(source).toContain("os.tmpdir()");
+
+    const prompt = readFileSync(path.join(REPO_ROOT, "scripts", "prompt-password.ts"), "utf8");
+    expect(prompt).toContain("setRawMode");
+    expect(prompt).toContain("*");
+  });
+
+  it("dry run prints a redacted review, writes no file, and never echoes a password", async () => {
+    const savedEmail = process.env.OWNER_EMAIL;
+    const savedPassword = process.env.OWNER_PASSWORD;
+    process.env.OWNER_EMAIL = "dryrun@example.test";
+    process.env.OWNER_PASSWORD = "never-print-this-value-1234";
+
+    const logs: string[] = [];
+    const warnings: string[] = [];
+    // `process.env` is typed with required string properties here (wrangler's
+    // generated types), so the mutable view below is what `delete` needs.
+    const mutableEnv = process.env as Record<string, string | undefined>;
+    const logSpy = vi.spyOn(console, "log").mockImplementation((...parts: unknown[]) => {
+      logs.push(parts.map(String).join(" "));
+    });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation((...parts: unknown[]) => {
+      warnings.push(parts.map(String).join(" "));
+    });
+
+    try {
+      await runProvisionOwner(["--env", "preview"]);
+    } finally {
+      logSpy.mockRestore();
+      warnSpy.mockRestore();
+      if (savedEmail === undefined) delete mutableEnv.OWNER_EMAIL;
+      else process.env.OWNER_EMAIL = savedEmail;
+      if (savedPassword === undefined) delete mutableEnv.OWNER_PASSWORD;
+      else process.env.OWNER_PASSWORD = savedPassword;
+    }
+
+    const printed = logs.join("\n");
+    expect(printed).toContain(REDACTED_PLACEHOLDER);
+    expect(printed).toContain("nothing was executed");
+    expect(printed).toContain("masked prompt");
+    expect(printed).not.toMatch(SCRYPT_SHAPED);
+    expect(printed).not.toContain("never-print-this-value-1234");
+
+    const warned = warnings.join("\n");
+    expect(warned).toContain("OWNER_PASSWORD is set");
+    expect(warned).not.toContain("never-print-this-value-1234");
+
+    // The pre-fix script left its SQL here, inside the synced project.
+    expect(existsSync(path.join(REPO_ROOT, ".wrangler", OWNER_SQL_FILE))).toBe(false);
   });
 });

@@ -18,7 +18,8 @@ Required environment variables — in `.dev.vars` locally, as Worker secrets in 
 | `BETTER_AUTH_SECRET` | session signing | at least 32 random bytes; changing it signs everybody out |
 | `BETTER_AUTH_URL` | callback origin | must be the public origin, scheme included |
 | `BETTER_AUTH_TRUSTED_ORIGINS` | CSRF origin check | the public origin |
-| `OWNER_EMAIL`, `OWNER_PASSWORD`, `OWNER_NAME` | `npm run db:provision:owner` only | not an application secret; the password is hashed before it is written anywhere |
+| `OWNER_EMAIL`, `OWNER_NAME` | `npm run db:provision:owner` | the account's login email and the name shown in the dashboard; the email cannot be retyped later, only edited in D1 |
+| `OWNER_PASSWORD` | local seed and Playwright suite only | not an application secret; the remote provisioner never reads it - that password is typed twice at a masked prompt, and only its hash reaches anything |
 | `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` | CI deploy only | least-privilege token, never in the repository |
 
 If `BETTER_AUTH_SECRET` is absent the build succeeds and every login fails at runtime. Check it
@@ -62,10 +63,23 @@ neither has a default environment, and neither runs anything without an explicit
 | `npm run db:seed:remote -- --env preview\|production` | 5 categories, 34 dishes, the site settings, the gallery manifest — every statement `INSERT … ON CONFLICT DO NOTHING` | Nothing changes: rows the owner has renamed, repriced or hidden survive, and rows the owner added are never touched, because there is no `UPDATE` and no `DELETE` in the file at all |
 | `npm run db:provision:owner -- --env preview\|production` | One owner account, password hashed with Better Auth's `hashPassword` | Refuses before writing anything if any `user` row exists, and lists the addresses it found; the SQL has no conflict clause either, so a row appearing in between makes the import fail rather than create a second account |
 
-Read the printed SQL before adding `--apply`; the generated file stays under the gitignored
-`.wrangler/` afterwards for review or a manual re-run. The password is read from `OWNER_EMAIL` /
-`OWNER_PASSWORD` (and optionally `OWNER_NAME`) in the environment, never from the repository, and
-only its hash reaches the file.
+Read the printed SQL before adding `--apply`. The two scripts leave different things behind,
+deliberately:
+
+- `db:seed:remote` writes its file under the gitignored `.wrangler/` (`remote-content.sql`) and
+  leaves it there: the content is not secret, and keeping the exact bytes an apply ran is useful
+  for a manual re-run.
+- `db:provision:owner` writes to a uniquely named directory under the OS temporary directory
+  (outside the project, outside the sync) with the most restrictive permissions the platform
+  supports, and deletes it when the run ends - including when it fails. The repository lives in a
+  synced folder, so a credential hash must not land where a sync or a backup can pick it up. The
+  dry run prints a redacted copy (placeholder instead of hash); the real SQL is never printed.
+
+The owner password is read from a masked interactive prompt, typed twice, at `--apply` time -
+never from an argument, a file, or an environment variable such as `OWNER_PASSWORD`, which the
+provisioning script deliberately ignores. `OWNER_EMAIL` and optionally `OWNER_NAME` come from the
+environment or `.dev.vars`; only the password's `hashPassword` output reaches the file and the
+database.
 
 Local preparation, which is the same schema and the same data:
 
@@ -85,12 +99,19 @@ npx wrangler d1 migrations list resta-pescado-preview-db --env preview --remote
 npx wrangler d1 migrations apply resta-pescado-preview-db --env preview --remote
 ```
 
+`npm run db:migrate:preview` is the **local** preview migration. It exists so `npm run dev:preview`
+has a migrated local database; it always runs with `--local` and never touches the remote preview
+database. The remote preview schema is created only by the explicit `--remote` commands above.
+Leave the script as it is: a local-looking command that silently migrates a remote database is
+exactly the mistake this checklist exists to prevent.
+
 Then, per environment, content and the account:
 
 ```bash
 npm run db:seed:remote -- --env preview          # prints the SQL, executes nothing
 npm run db:seed:remote -- --env preview --apply
-npm run db:provision:owner -- --env preview --apply
+npm run db:provision:owner -- --env preview      # prints the redacted SQL, executes nothing
+npm run db:provision:owner -- --env preview --apply   # prompts for the password twice, then applies
 ```
 
 The re-seed is insert-only for owner decisions: `bundled_gallery_images` alt text, captions and

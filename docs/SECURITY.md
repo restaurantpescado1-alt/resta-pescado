@@ -20,6 +20,11 @@
   in it.
 - Audit create, update, delete, reorder, settings, and sensitive login actions.
 - Keep secrets out of Git, Notion, screenshots, and chat.
+- Provision the owner password interactively only: `db:provision:owner` reads it from a masked
+  prompt (typed twice), never from `OWNER_PASSWORD` in the environment or a file, writes only the
+  `hashPassword` output to a temporary directory under the OS temporary folder with restrictive
+  permissions, and removes it when the run ends - including on failure. Nothing that prints the
+  real SQL (the apply runs a file, and the dry run shows a redacted copy).
 - Use D1 Time Travel plus scheduled JSON exports to R2; test restore before launch.
 
 ## Order of checks on an owner write
