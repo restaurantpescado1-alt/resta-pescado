@@ -18,4 +18,18 @@ export interface ActionResult {
    * rather than leaving the owner to guess whether the fish drawing is now the photo.
    */
   fallback?: string;
+
+  /* Phase 3: the dashboard needs to redraw itself from the answer, not guess. */
+
+  /**
+   * True when the write was rejected because the row had already changed.
+   *
+   * Distinct from `ok: false` because the remedy differs: a stale edit needs a reload before
+   * the owner can try again, whereas an invalid field needs a correction. The UI reloads on
+   * this one and keeps the form open on the others.
+   */
+  stale?: boolean;
+  /** Id of a row the owner just created, so the list can expand to it. */
+  id?: string;
+  isVisible?: boolean;
 }

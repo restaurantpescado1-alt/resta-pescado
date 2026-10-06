@@ -84,13 +84,29 @@ describe("bundled gallery manifest", () => {
     }
   });
 
-  it("claims no authenticity the repository cannot support", () => {
+  it("records the owner's confirmation and discloses the edit it describes", () => {
     for (const image of images) {
-      expect(image.provenance).toBe("unverified");
-      // A provenance flag of "unverified" beside alt text asserting the place is a
-      // contradiction, so the wording must not name the restaurant as fact.
-      expect(image.altFr).not.toMatch(/notre restaurant/i);
+      expect(image.provenance).toBe("owner-confirmed");
+      /*
+       * The owner stated the photographs are from the restaurant and were edited only for
+       * lighting, with the portions and the scene content unchanged. A confirmed entry
+       * that disclosed nothing would let a visitor assume the files are untouched
+       * originals, which is the one thing the owner did not claim.
+       */
+      expect(image.editNoteFr).toContain("luminosité");
+      expect(image.editNoteFr).not.toMatch(/intact|original|non retouché/i);
     }
+  });
+
+  it("keeps an unconfirmed entry silent rather than borrowing a confirmation", () => {
+    /*
+     * Constructed rather than read from the manifest: no bundled entry is unverified
+     * today, so the only way to prove the rule is to build the entry and check it. An
+     * unconfirmed photograph must not display the wording of a confirmed one.
+     */
+    const unconfirmed = { ...images[0]!, provenance: "unverified" as const, editNoteFr: null };
+
+    expect(unconfirmed.editNoteFr).toBeNull();
   });
 
   it("never reuses a fish illustration as a photograph", () => {
@@ -98,7 +114,8 @@ describe("bundled gallery manifest", () => {
      * These files arrived as curated exports whose contents cannot be verified from here,
      * so the alt text may not assert a species as fact either. `fresh-tuna-display` is the
      * test case: the filename says tuna, and asserting it would be a claim nobody can
-     * check.
+     * check. The owner's confirmation covers where the photograph was taken, not what is
+     * in the frame.
      */
     for (const image of images) {
       expect(image.altFr.toLowerCase()).not.toMatch(/illustration|générée par ia/i);

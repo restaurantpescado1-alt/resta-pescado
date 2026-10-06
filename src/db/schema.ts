@@ -11,6 +11,36 @@ const timestamps = {
 };
 
 /**
+ * Integer revision counter, bumped by every owner-facing edit, plus the token that
+ * identifies one specific write.
+ *
+ * `updated_at` cannot play the guard role on its own. It is stored as whole Unix
+ * seconds, so two edits inside the same second are indistinguishable, and a stale form
+ * submitted after a newer edit would be accepted and silently overwrite it. A monotonic
+ * counter is exact regardless of clock resolution, which is what makes the "someone else
+ * already changed this" check in the owner dashboard trustworthy.
+ *
+ * `version` alone is still not quite enough, and the reason is specific. The audit row for
+ * an edit is inserted in the same atomic batch as the edit, gated on the row now carrying
+ * the version that edit was supposed to produce. Two owners' tabs, or one tab saved twice,
+ * can collide exactly there: the stale write's target version is the same integer the
+ * fresher write already produced, so the gate would pass and the audit log would claim a
+ * change that was never applied.
+ *
+ * `edit_token` closes that. Each accepted write stamps a fresh random token, and the audit
+ * insert is gated on *that* token, which no other write can produce. The audit row and the
+ * change it describes therefore stand or fall together, which is the property
+ * `docs/ARCHITECTURE.md` requires of every owner write.
+ *
+ * Null rather than a default: a row that has never been edited through the dashboard has no
+ * token, and there is nothing to compare against.
+ */
+const revision = {
+  version: integer("version").notNull().default(1),
+  editToken: text("edit_token"),
+};
+
+/**
  * Better Auth core tables. Column names are dictated by the Better Auth Drizzle
  * adapter and must not be renamed.
  */
@@ -114,6 +144,7 @@ export const menuCategories = sqliteTable(
     sortOrder: integer("sort_order").notNull().default(0),
     isVisible: integer("is_visible", { mode: "boolean" }).notNull().default(true),
     ...timestamps,
+    ...revision,
   },
   (table) => [uniqueIndex("menu_categories_slug_idx").on(table.slug)],
 );
@@ -153,6 +184,7 @@ export const menuItems = sqliteTable(
     isVisible: integer("is_visible", { mode: "boolean" }).notNull().default(true),
     sortOrder: integer("sort_order").notNull().default(0),
     ...timestamps,
+    ...revision,
   },
   (table) => [
     index("menu_items_category_id_idx").on(table.categoryId),
@@ -187,13 +219,72 @@ export const galleryImages = sqliteTable(
      * this is not nullable the way `menu_items.descriptionFr` is.
      */
     altTextFr: text("alt_text_fr").notNull(),
+    /**
+     * Optional French caption shown under the photograph, in the public grid.
+     *
+     * Separate from `altTextFr` on purpose. Alt text describes the photograph for someone
+     * who cannot see it, and duplicating the caption there would be noise for a screen
+     * reader. A caption is extra editorial text the owner may simply not want, so it is
+     * nullable and blank stays blank: `docs/CONTENT_POLICY.md` forbids inventing menu
+     * copy, and a caption is menu copy.
+     */
+    captionFr: text("caption_fr"),
     /** Manual order, like categories and items. Never alphabetical-by-locale. */
     sortOrder: integer("sort_order").notNull().default(0),
     isVisible: integer("is_visible", { mode: "boolean" }).notNull().default(true),
     ...timestamps,
+    ...revision,
   },
   (table) => [index("gallery_images_sort_order_idx").on(table.sortOrder)],
 );
+
+/**
+ * Owner-managed state for the photographs bundled in `public/images/gallery/`.
+ *
+ * These files ship with the repository and are served by the Worker straight from
+ * `public/`. They are listed in `src/lib/gallery-images.ts` and nothing can delete them,
+ * which is what makes them different from an uploaded photograph. This table stores only
+ * what the owner is allowed to change about them, and it is seeded from the manifest so a
+ * fresh database has one row per bundled photograph.
+ *
+ * **Why not one table.** `gallery_images` above is R2-only: `imageKey` is `not null` and
+ * every path that serves or deletes an uploaded photograph goes through it. A bundled
+ * photograph has no R2 key at all, so putting both in one table would mean either a
+ * nullable key on the uploaded side or a fake key on the bundled side. The fake key is the
+ * dangerous one: it would let a `/images/gallery/webp/...` public path reach `media.delete`
+ * and quietly break the shipped asset. Two tables make that unrepresentable rather than
+ * merely discouraged, and it is why `listBundledGalleryState` and `getAdminGallery` are
+ * separate reads joined only when a page wants both.
+ *
+ * `slug` is the primary key and is the manifest key, so the rows and the files cannot be
+ * ordered independently of each other and a photograph removed from the manifest simply
+ * stops having a row.
+ */
+export const bundledGalleryImages = sqliteTable("bundled_gallery_images", {
+  /** `BundledGalleryImage.slug` in `src/lib/gallery-images.ts`. */
+  slug: text("slug").primaryKey(),
+  /**
+   * Owner-editable French alt text. Starts as the manifest's curated text, and may be
+   * edited because the owner is the one who knows what the photograph shows. Never
+   * blank: an image with no description is unusable to a screen-reader user.
+   */
+  altTextFr: text("alt_text_fr").notNull(),
+  /** Owner-editable caption, or null when the owner has not written one. */
+  captionFr: text("caption_fr"),
+  /** Manual order. The manifest's curated order is the seed value, not the runtime order. */
+  sortOrder: integer("sort_order").notNull().default(0),
+  /**
+   * Hides the photograph without touching the file.
+   *
+   * Defaults to published because these are the photographs already on the site: hiding
+   * them is something the owner has to ask for, not something a missing row should imply.
+   * A `false` default would blank `/galerie` on a database that was merely seeded and
+   * never touched, which is a much worse failure than the reverse.
+   */
+  isVisible: integer("is_visible", { mode: "boolean" }).notNull().default(true),
+  ...timestamps,
+  ...revision,
+});
 
 /**
  * Single row. The check constraint pins `id` so a second settings row cannot
@@ -229,6 +320,7 @@ export const siteSettings = sqliteTable(
     pickupTextFr: text("pickup_text_fr"),
 
     ...timestamps,
+    ...revision,
   },
   (table) => [check("site_settings_singleton", sql`${table.id} = 'singleton'`)],
 );
@@ -296,3 +388,9 @@ export type SiteSettingsRow = typeof siteSettings.$inferSelect;
 export type AuditLogRow = typeof auditLogs.$inferSelect;
 export type UserRow = typeof user.$inferSelect;
 export type GalleryImageRow = typeof galleryImages.$inferSelect;
+export type BundledGalleryImageRow = typeof bundledGalleryImages.$inferSelect;
+
+/** Insert shapes, for the repositories that create rows. */
+export type NewMenuCategory = typeof menuCategories.$inferInsert;
+export type NewMenuItem = typeof menuItems.$inferInsert;
+export type NewGalleryImage = typeof galleryImages.$inferInsert;

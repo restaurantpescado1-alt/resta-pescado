@@ -1,31 +1,30 @@
-import Link from "next/link";
-
-import { MenuEditor } from "@/components/menu-editor";
+import { MenuManager } from "@/components/admin/menu-manager";
+import { AdminPageHeader } from "@/components/admin/page-header";
 import { getDb } from "@/db";
 import { getAdminMenu } from "@/db/repositories/menu";
 import { requireOwner } from "@/lib/authz";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * The menu editor.
+ *
+ * `getAdminMenu` returns hidden categories and hidden dishes as well as visible ones, which is
+ * the whole point here: the dashboard has to show what is on the site *and* what is not, or a
+ * hidden dish would be impossible to find again.
+ */
 export default async function AdminMenuPage() {
   await requireOwner("/admin/menu");
   const menu = await getAdminMenu(getDb());
 
   return (
     <div>
-      <Link href="/admin" className="text-sm underline underline-offset-4">
-        ← Tableau de bord
-      </Link>
-      <h1 className="mt-3 text-2xl font-semibold tracking-tight">Gérer la carte</h1>
-      <p className="mt-1 text-sm text-ink-soft">
-        Les modifications sont publiées immédiatement et enregistrées dans le journal d&apos;audit.
-      </p>
+      <AdminPageHeader
+        title="Gérer la carte"
+        description="Les modifications sont publiées immédiatement et enregistrées dans le journal d'activité. Masquer un plat ou une catégorie est réversible ; les supprimer ne l'est pas."
+      />
 
-      {menu.categories.length === 0 ? (
-        <p className="mt-6 text-sm text-ink-soft">Aucune catégorie.</p>
-      ) : (
-        <MenuEditor categories={menu.categories} />
-      )}
+      <MenuManager categories={menu.categories} />
     </div>
   );
 }

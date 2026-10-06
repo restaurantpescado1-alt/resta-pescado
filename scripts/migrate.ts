@@ -50,6 +50,21 @@ export function hasPhase2Schema(native: MigrationTarget): boolean {
   return hasFishColumn && tables.length > 0;
 }
 
+/**
+ * Whether the Phase 3 tables and columns are present.
+ *
+ * Same reasoning as `hasPhase2Schema`: the seed needs to know it can write
+ * `bundled_gallery_images` and read `gallery_images.caption_fr` before it tries,
+ * rather than failing halfway through with a missing-column error. The table alone is
+ * enough to identify the migration, because no earlier one creates it.
+ */
+export function hasPhase3Schema(native: MigrationTarget): boolean {
+  const tables = native
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?")
+    .all("bundled_gallery_images") as unknown[];
+  return tables.length > 0;
+}
+
 function hashMigration(cwd: string, tag: string): string {
   return createHash("sha256").update(readFileSync(join(resolve(cwd, "drizzle"), `${tag}.sql`), "utf8")).digest("hex");
 }

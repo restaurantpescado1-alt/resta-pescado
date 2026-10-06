@@ -26,6 +26,31 @@ async function loadOwnerProfile(): Promise<ProfileRow | null> {
   return findOwnerProfile(getDb(), session.user.id);
 }
 
+/** The signed-in owner and the email Better Auth actually authenticates them with. */
+export interface OwnerSession {
+  readonly profile: ProfileRow;
+  readonly email: string;
+}
+
+/**
+ * Page guard that also hands back the account email.
+ *
+ * The email lives on the Better Auth user row rather than in `profiles`, so reading it here
+ * means going back to the session instead of storing a second copy that could drift. Only the
+ * account section needs it; every other page uses `requireOwner`.
+ */
+export async function requireOwnerSession(destination?: string): Promise<OwnerSession> {
+  const session = await getAuth().api.getSession({ headers: await headers() });
+  if (!session) {
+    redirect(loginUrlFor(destination ?? DEFAULT_OWNER_REDIRECT));
+  }
+  const profile = await findOwnerProfile(getDb(), session.user.id);
+  if (!profile) {
+    throw new NotOwnerError();
+  }
+  return { profile, email: session.user.email };
+}
+
 /**
  * Page guard: redirects to the login screen, preserving where the visitor was
  * headed so a successful sign-in returns them there.

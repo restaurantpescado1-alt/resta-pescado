@@ -18,7 +18,7 @@ test.describe("anonymous access", () => {
   test("/admin/menu redirects to the login page", async ({ page }) => {
     await page.goto("/admin/menu");
     await expect(page).toHaveURL(/\/admin\/login/);
-    await expect(page.getByTestId("menu-editor")).toHaveCount(0);
+    await expect(page.getByTestId("menu-manager")).toHaveCount(0);
   });
 
   test("a redirect preserves the original destination", async ({ page }) => {

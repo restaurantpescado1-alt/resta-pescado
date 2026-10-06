@@ -6,7 +6,9 @@ import {
   goToAdminMenu,
   itemRow,
   loginAsOwner,
+  newestAuditEntry,
   REMOVAL_TEST_ITEM_ID,
+  REMOVAL_TEST_ITEM_NAME,
   REMOVAL_TEST_ITEM_WITHOUT_FISH_ID,
   useAnonymousSession,
 } from "./helpers";
@@ -75,14 +77,10 @@ function acceptRemoveConfirmation(page: Page): void {
 /**
  * The newest audit entry.
  *
- * `listAuditLogs` is capped at twenty rows and ordered newest first, so a count cannot be
- * used to prove a removal was recorded: once the journal is full, adding an entry leaves
+ * `listReadableAuditLogs` is capped at twenty rows and ordered newest first, so a count cannot
+ * be used to prove a removal was recorded: once the journal is full, adding an entry leaves
  * the visible count unchanged. The top row is the one that was just written.
  */
-function newestAuditEntry(page: Page): Locator {
-  return page.getByTestId("audit-list").locator("li").first();
-}
-
 test.describe("owner image removal", () => {
   test("the control only exists for a dish that has a photograph", async ({ page }) => {
     await goToAdminMenu(page);
@@ -207,11 +205,14 @@ test.describe("owner image removal", () => {
      * shared state that earlier tests write to and it only renders its twenty most recent
      * entries, so a page-wide containment check would pass on an entry from a previous
      * test and never notice a removal that was never recorded.
+     *
+     * The dish is named rather than identified by its id, because the journal is written for
+     * the owner to read and `item-merlan` is not something they should ever see.
      */
     await page.goto("/admin");
     const entry = newestAuditEntry(page);
     await expect(entry).toContainText("Image supprimée");
-    await expect(entry).toContainText(REMOVAL_TEST_ITEM_ID);
+    await expect(entry).toContainText(REMOVAL_TEST_ITEM_NAME);
   });
 });
 

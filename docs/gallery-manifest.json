@@ -24,7 +24,7 @@
       "sourceBytes": 2276758,
       "servedBytes": 137466,
       "alt_fr": "La salle du restaurant Resta Pescado, avec les tables dressées pour le service.",
-      "provenance": "unverified",
+      "provenance": "owner-confirmed",
       "note": "Chosen over restaurant-dining-room.jpg. See rejected[0]."
     },
     {
@@ -38,7 +38,7 @@
       "sourceBytes": 2291972,
       "servedBytes": 127254,
       "alt_fr": "La décoration intérieure du restaurant, dans un style maritime avec des plantes.",
-      "provenance": "unverified"
+      "provenance": "owner-confirmed"
     },
     {
       "slug": "full-seafood-display",
@@ -51,7 +51,7 @@
       "sourceBytes": 2643347,
       "servedBytes": 192870,
       "alt_fr": "Vue d'ensemble du comptoir de poissons et de fruits de mer.",
-      "provenance": "unverified"
+      "provenance": "owner-confirmed"
     },
     {
       "slug": "fresh-seafood-counter",
@@ -64,7 +64,7 @@
       "sourceBytes": 2543203,
       "servedBytes": 151130,
       "alt_fr": "Poissons et fruits de mer présentés sur le comptoir du restaurant.",
-      "provenance": "unverified"
+      "provenance": "owner-confirmed"
     },
     {
       "slug": "fresh-seafood-detail",
@@ -77,7 +77,7 @@
       "sourceBytes": 2727653,
       "servedBytes": 190932,
       "alt_fr": "Sélection de poissons et de fruits de mer sur le comptoir.",
-      "provenance": "unverified"
+      "provenance": "owner-confirmed"
     },
     {
       "slug": "fresh-tuna-display",
@@ -90,7 +90,7 @@
       "sourceBytes": 2850172,
       "servedBytes": 193204,
       "alt_fr": "Tranches de thon présentées sur le comptoir.",
-      "provenance": "unverified"
+      "provenance": "owner-confirmed"
     },
     {
       "slug": "starters-and-salads",
@@ -103,7 +103,7 @@
       "sourceBytes": 2303293,
       "servedBytes": 119748,
       "alt_fr": "Salades et entrées préparées, présentées avant le service.",
-      "provenance": "unverified",
+      "provenance": "owner-confirmed",
       "note": "The one 16:9 source. Cropped to 4:3 by the processing script. CONTENT_POLICY.md allows cropping; nothing is stretched."
     }
   ],
@@ -129,10 +129,22 @@
     }
   ],
   "authenticity": {
-    "status": "unverified",
-    "concern": "Every photograph is marked provenance 'unverified'. They arrived as curated exports with no camera metadata, and nothing in the repository can show whether they are unaltered documentary photographs of this restaurant or were generated or materially edited.",
-    "policy": "docs/CONTENT_POLICY.md ranks an owner-approved temporary AI image fifth and below it only 'no image', and forbids passing materially different work off as documentary.",
-    "requiredBeforeLaunch": "The owner confirms this set is real photography of Resta Pescado, or the unconfirmed entries come off the site.",
-    "notClaimedByThisRepository": "Nothing here asserts a species, a certification, a provenance, or that any photograph shows a dish actually served."
+    "status": "owner-confirmed",
+    "confirmedBy": "Restaurant owner, stated directly and recorded here in phase 3.",
+    "ownerStatement": "The gallery photographs are from the restaurant. They were edited only for lighting; the portions and the scene content were not changed.",
+    "recordedAs": "provenance 'owner-confirmed' on every published entry, with the lighting edit disclosed on /galerie.",
+    "whatThisIsNot": [
+      "Not an independent visual review. Nobody working on this repository compared the files against the restaurant to confirm they are photographs of it, and the files still carry no EXIF text or ICC profile to corroborate them.",
+      "Not a provenance chain. The repository cannot say who took the photographs or with what device.",
+      "Not a statement about the 16:9 starters-and-salads source beyond the owner's statement. It is cropped to 4:3 by the processing script, which is a framing change and is disclosed separately below."
+    ],
+    "separateConsentGap": {
+      "status": "open",
+      "gap": "No consent record exists for people who may appear in the photographs, such as staff or customers.",
+      "whyItIsSeparate": "The owner confirming that a photograph is of the restaurant says nothing about whether identifiable individuals agreed to be published. The two questions need separate answers.",
+      "ownerAction": "Confirm whether any identifiable person appears, and obtain and record their agreement before launch. Kept in docs/FINAL_REVIEW_CHECKLIST.md until then."
+    },
+    "policy": "docs/CONTENT_POLICY.md ranks an owner-approved temporary AI image fifth and below it only 'no image', and forbids passing materially different work off as documentary. A lighting adjustment is disclosed rather than passed off as untouched.",
+    "notClaimedByThisRepository": "Nothing here asserts a species, a certification, a camera provenance, or that any photograph shows a dish actually served."
   }
 }

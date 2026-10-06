@@ -1,7 +1,7 @@
 import { and, asc, eq, sql } from "drizzle-orm";
 
 import type { Database } from "..";
-import { runAtomicBatch } from "../atomic";
+import { expectExactlyOne, runAtomicBatch } from "../atomic";
 import {
   auditLogs,
   galleryImages,
@@ -22,7 +22,7 @@ export const SITE_SETTINGS_SINGLETON_ID = "singleton";
  * milliseconds would be truncated inconsistently. Truncating here keeps the
  * written value identical to what `unixepoch()` would have produced.
  */
-function toTimestamp(now: Date): Date {
+export function toTimestamp(now: Date): Date {
   return new Date(Math.floor(now.getTime() / 1000) * 1000);
 }
 
@@ -137,8 +137,11 @@ export async function updateMenuItemImageKey(
   return rows[0] ?? null;
 }
 
-/** Index of the update statement inside an atomic batch; see `runAtomicBatch`. */
-const UPDATE_MUST_MATCH = 0;
+/**
+ * The update has to land on exactly one row for these writes to count as applied; see
+ * `runAtomicBatch`.
+ */
+const UPDATE_MUST_MATCH = [expectExactlyOne(0)];
 
 /**
  * Builds the audit insert, without executing it.
@@ -146,7 +149,7 @@ const UPDATE_MUST_MATCH = 0;
  * Shared by `recordAuditLog` and the atomic variants so there is exactly one
  * definition of what an audit row looks like.
  */
-function buildAuditInsert(db: Database, entry: AuditEntry, now: Date) {
+export function buildAuditInsert(db: Database, entry: AuditEntry, now: Date) {
   return db.insert(auditLogs).values({
     id: crypto.randomUUID(),
     actorId: entry.actorId,

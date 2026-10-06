@@ -5,9 +5,16 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import { hashPassword } from "better-auth/crypto";
 
 import { requireEnv } from "./env";
-import { applyMigrations, hasPhase1Schema, hasPhase2Schema, markMigrationApplied } from "./migrate";
+import {
+  applyMigrations,
+  hasPhase1Schema,
+  hasPhase2Schema,
+  hasPhase3Schema,
+  markMigrationApplied,
+} from "./migrate";
 import { assertSeedIsSafe, DELETE_OPT_IN_ENV, isDestructiveResetAllowed } from "./local-db-guard";
 import { APPROVED_CATEGORIES, APPROVED_MENU, allApprovedItems } from "./approved-menu";
+import { listBundledGalleryImages } from "../src/lib/gallery-images";
 import * as schema from "../src/db/schema";
 
 /**
@@ -28,8 +35,10 @@ import * as schema from "../src/db/schema";
  *   invented imagery, and a grey rectangle on "Dorade" would be worse than nothing, so
  *   `image_key` stays null for every item. The end-to-end suite uploads its own image
  *   to exercise the R2 path.
- * - **No gallery images.** There is no restaurant photography yet, so `gallery_images`
- *   is left empty and `/galerie` renders an honest empty state.
+ * - **No uploaded gallery images.** `gallery_images` stays empty and holds only R2
+ *   uploads. The photographs that ship with the repository are *not* seeded into it:
+ *   they are written to `bundled_gallery_images`, which stores no object key and cannot
+ *   be mistaken for an upload. See `seedBundledGallery`.
  * - **No featured dishes.** `is_featured` stays false everywhere until the owner picks
  *   them, so nothing on the site claims the restaurant recommends a dish.
  *
@@ -127,10 +136,10 @@ export async function seed(): Promise<void> {
 
   // Only migrate when the schema is missing. `db:migrate:local` may have
   // already run through wrangler, which keeps its own bookkeeping table. A
-  // Phase-1-only database still needs `0001`, so the check is for the newest
-  // schema, not for "some migration ran".
-  if (!hasPhase2Schema(native)) {
-    if (hasPhase1Schema(native)) {
+  // Phase-1-only database still needs `0001` and `0002`, so the check is for the
+  // newest schema, not for "some migration ran".
+  if (!hasPhase3Schema(native)) {
+    if (hasPhase1Schema(native) && !hasPhase2Schema(native)) {
       // Phase 1 landed via wrangler, which left `__drizzle_migrations` empty.
       // Record it so `applyMigrations` does not re-run `0000`.
       markMigrationApplied(native, "0000_phase1_foundation");
@@ -142,6 +151,10 @@ export async function seed(): Promise<void> {
     .prepare("SELECT id FROM user WHERE email = ?")
     .get(ownerEmail) as { id: string } | undefined;
   const userId = existingUser?.id ?? crypto.randomUUID();
+
+  // Read once, outside the transaction: the manifest is a module, so this cannot change
+  // mid-write, and the summary below needs the count as well.
+  const bundledImages = listBundledGalleryImages();
 
   native.exec("BEGIN");
   try {
@@ -220,6 +233,23 @@ export async function seed(): Promise<void> {
       }
     }
 
+    // Bundled photographs, one row per manifest entry, in the curated order.
+    //
+    // `sort_order` is restored from the manifest on every seed, because the manifest is
+    // the curated baseline. `caption_fr` and `is_visible` are *not* touched, and
+    // `alt_text_fr` is only inserted: those are owner decisions made through the
+    // dashboard, and a re-seed that un-hid a photograph or dropped a caption would
+    // silently undo them.
+    //
+    // Insert-only, so this is safe to run against a database that already has the rows.
+    const bundledImages = listBundledGalleryImages();
+    const insertBundled = native.prepare(
+      "INSERT INTO bundled_gallery_images (slug, alt_text_fr, caption_fr, sort_order, is_visible, created_at, updated_at, version) VALUES (?, ?, NULL, ?, 1, unixepoch(), unixepoch(), 1) ON CONFLICT(slug) DO UPDATE SET sort_order = excluded.sort_order",
+    );
+    for (const [index, image] of bundledImages.entries()) {
+      insertBundled.run(image.slug, image.altFr, index + 1);
+    }
+
     // Remove anything the owner has not approved.
     //
     // This is a *local reset* convenience, gated behind SEED_ALLOW_DELETE=1, because
@@ -260,8 +290,8 @@ export async function seed(): Promise<void> {
   native.close();
 
   const categoryCount = APPROVED_CATEGORIES.length;
-const allItems = APPROVED_MENU.flatMap((group) => group.items);
-const illustrationCount = allItems.filter((item) => item.fishReferenceSlug !== undefined).length;
+  const allItems = APPROVED_MENU.flatMap((group) => group.items);
+  const illustrationCount = allItems.filter((item) => item.fishReferenceSlug !== undefined).length;
 
   console.log("Local seed complete:");
   console.log(`  owner      : ${ownerEmail}`);
@@ -270,7 +300,8 @@ const illustrationCount = allItems.filter((item) => item.fishReferenceSlug !== u
   console.log(`  items      : ${allItems.length}`);
   console.log(`  fish refs  : ${illustrationCount} items with a reference illustration`);
   console.log(`  featured   : 0 (owner selects these from the dashboard)`);
-  console.log(`  gallery    : 0 images (empty state on /galerie)`);
+  console.log(`  bundled    : ${bundledImages.length} photographs (owner edits preserved)`);
+  console.log(`  uploads    : 0 images (gallery_images is for R2 uploads only)`);
   console.log(`  photos     : 0 seeded (image_key null on every item)`);
   console.log(
     `  stale rows : ${isDestructiveResetAllowed() ? "removal enabled (SEED_ALLOW_DELETE=1)" : "left untouched (set SEED_ALLOW_DELETE=1 to reset)"}`,

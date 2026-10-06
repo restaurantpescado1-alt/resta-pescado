@@ -85,7 +85,17 @@ function createAuth() {
       },
     },
 
-    // Must stay last so its Set-Cookie handling wraps every other plugin.
+    /*
+     * Must stay last so its Set-Cookie handling wraps every other plugin, and it is what makes
+     * the server actions work at all.
+     *
+     * `getAuth().api.signOut(...)` and `getAuth().api.changePassword(...)` are called directly,
+     * not through a route handler. Those endpoint responses carry `Set-Cookie` headers, and a
+     * direct call throws them away — the browser would keep the old session cookie. This plugin's
+     * `after` hook is the part that copies them into Next's response. Drop it, or move it off the
+     * end of the list, and nothing errors: changing the password silently signs the owner out,
+     * because `revokeOtherSessions` has already deleted the session the browser is still holding.
+     */
     plugins: [nextCookies()],
   });
 }

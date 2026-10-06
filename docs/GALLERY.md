@@ -32,22 +32,42 @@ never stretches, and strips metadata. Cropping a non-4:3 source down to 4:3 is a
 **Sharp is not a production dependency.** It runs here, at build time. The output is a
 committed static file, so the Worker never decodes an image while serving a request.
 
-## What has not been verified
+## What the owner confirmed, and what is still open
 
-Every bundled photograph is marked `provenance: "unverified"` in
+Every bundled photograph is marked `provenance: "owner-confirmed"` in
 `src/lib/gallery-images.ts`, and `docs/gallery-manifest.json` records the same.
 
-The reason is specific. These files arrived as curated exports with no EXIF text and no ICC
-profile, and nothing in this repository can show whether they are unaltered documentary
-photographs of this restaurant or were generated or materially edited.
-`docs/CONTENT_POLICY.md` ranks an owner-approved temporary AI image fifth, below it only "no
-image", and forbids passing materially different work off as documentary.
+**The owner's statement, recorded in phase 3:** the photographs are from the restaurant, and
+they were edited only for lighting. The portions and the scene content were not changed. That
+statement is why the `unverified` flag came off, and it is repeated on `/galerie` so a visitor
+is not left to assume the files are untouched originals.
 
-**The owner has to confirm this set before launch.** Either the photographs are real and the
-flag comes off, or the unconfirmed ones come off the site. The flag lives in the data rather
-than only in prose so it cannot be quietly dropped.
+Three things this confirmation is **not**, and none of them are claimed anywhere:
 
-Nothing in the repository asserts a species, a certification, a provenance, or that any
+- **Not an independent visual review.** Nobody working on this repository compared the files
+  against the restaurant. The files still carry no EXIF text and no ICC profile, which is the
+  same gap that existed before the confirmation.
+- **Not a provenance chain.** The repository cannot say who took the photographs or on what
+  device.
+- **Not a consent record.** See below.
+
+`provenance` is a required argument on every entry rather than a default, so a photograph added
+later has to state what is known about it instead of silently inheriting a confirmation given
+about a different set of files.
+
+### Open gap: people who may appear in the photographs
+
+No consent record exists for identifiable people who may be in these pictures, staff or
+customers. That is a **separate question** from whether a photograph shows the restaurant: the
+owner confirming a photograph is of the premises says nothing about whether the people in it
+agreed to be published.
+
+This stays open and stays tracked in `docs/FINAL_REVIEW_CHECKLIST.md`. It is not a repository
+problem and no code can close it.
+
+### What remains unclaimed
+
+Nothing in the repository asserts a species, a certification, a camera provenance, or that any
 photograph shows a dish actually served.
 
 ## The duplicate dining-room file
@@ -107,3 +127,19 @@ deleted by a script.** The seed's reset path is gated behind
 - **Concurrent edits are last-write-wins.** Two owner tabs editing the same dish can
   overwrite each other. There is one owner account, so the exposure is small, and no
   optimistic locking is implemented.
+
+## Editing the gallery from the dashboard
+
+From Phase 3 the owner manages both sources in `/admin/galerie` without a code edit:
+
+- **Bundled photographs** can be hidden, reordered, and given an edited alt text or caption.
+  Their source files are never deleted, and they keep living in `public/images/gallery/`.
+  Hiding one is a database flag only.
+- **Uploaded photographs** live in R2 and can additionally be deleted, which removes the
+  object after the database stops referencing it.
+
+The two are kept structurally separate rather than merged into one list. Bundled state lives in
+`bundled_gallery_images`, keyed by the manifest slug, and uploaded state lives in
+`gallery_images`, keyed by a UUID and carrying an R2 key. A bundled row has no object key at
+all, so there is no code path on which a `/images/gallery/webp/...` path can be mistaken for an
+R2 key and sent to `media.delete()`.

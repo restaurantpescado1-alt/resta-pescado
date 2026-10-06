@@ -15,6 +15,13 @@
       "when": 1790886766026,
       "tag": "0001_phase2_public_site",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1791120244717,
+      "tag": "0002_phase3_owner_dashboard",
+      "breakpoints": true
     }
   ]
 }

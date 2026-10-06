@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { GalleryGrid } from "../../src/components/gallery-grid";
-import { listBundledGalleryImages } from "../../src/lib/gallery-images";
+import { listBundledGalleryImages, mergeBundledGalleryState } from "../../src/lib/gallery-images";
 
 /**
  * The gallery grid's two branches.
@@ -17,14 +17,18 @@ import { listBundledGalleryImages } from "../../src/lib/gallery-images";
  * `safe-image` covers through the browser.
  */
 describe("gallery grid", () => {
-  const bundled = listBundledGalleryImages();
+  /**
+   * What the page passes once it has merged the manifest with the owner's stored state.
+   * Merging against no rows is the state of a freshly migrated production database.
+   */
+  const bundled = mergeBundledGalleryState([]);
 
   it("renders a tile per photograph with a caption", () => {
     const html = renderToStaticMarkup(<GalleryGrid bundled={bundled} uploaded={[]} />);
 
     expect(html).not.toContain('data-testid="gallery-empty"');
     expect(html).toContain('data-testid="safe-image"');
-    expect((html.match(/<figcaption/gu) ?? []).length).toBe(bundled.length);
+    expect((html.match(/<figcaption/gu) ?? []).length).toBe(listBundledGalleryImages().length);
   });
 
   it("renders the empty state when there is nothing at all", () => {
@@ -68,9 +72,47 @@ describe("gallery grid", () => {
     );
   });
 
-  it("states the provenance caveat alongside the photographs", () => {
+  it("discloses the lighting edit the owner reported", () => {
     const html = renderToStaticMarkup(<GalleryGrid bundled={bundled} uploaded={[]} />);
 
-    expect(html).toContain("provenance exacte reste");
+    expect(html).toContain("ajustées uniquement au niveau de la luminosité");
+  });
+
+  it("says nothing about its provenance when no entry reports an edit", () => {
+    const unconfirmed = bundled.map((image) => ({ ...image, editNoteFr: null }));
+    const html = renderToStaticMarkup(<GalleryGrid bundled={unconfirmed} uploaded={[]} />);
+
+    expect(html).not.toContain("gallery-edit-note");
+    expect(html).not.toContain("luminosité");
+  });
+
+it("shows the owner's own description and caption rather than the manifest's", () => {
+    const first = bundled[0]!;
+    const edited = [
+      {
+        ...first,
+        altTextFr: "Une salle de restaurant côté fenêtre.",
+        captionFr: "Le midi, avant le coup de feu.",
+      },
+      ...bundled.slice(1),
+    ];
+
+    const html = renderToStaticMarkup(<GalleryGrid bundled={edited} uploaded={[]} />);
+
+    expect(html).toContain("Une salle de restaurant côté fenêtre.");
+    expect(html).toContain("Le midi, avant le coup de feu.");
+    // The caption replaced the description under the tile rather than being added beside it.
+    expect(html).not.toContain(`<figcaption class="px-3 py-2 text-xs leading-snug text-ink/75">Une salle`);
+  });
+
+  it("uses the description as the caption when the owner wrote no caption", () => {
+    // Keeping the two the same means the visible text is what a screen reader announces.
+    const first = bundled[0]!;
+    const edited = [{ ...first, altTextFr: "Le comptoir.", captionFr: null }, ...bundled.slice(1)];
+
+    const html = renderToStaticMarkup(<GalleryGrid bundled={edited} uploaded={[]} />);
+
+    expect(html).toContain('alt="Le comptoir."');
+    expect(html).toContain(">Le comptoir.</figcaption>");
   });
 });

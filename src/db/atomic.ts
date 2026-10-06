@@ -70,6 +70,22 @@ function readChanges(result: unknown): number {
 }
 
 /**
+ * What one statement of a finished batch must have done.
+ *
+ * `changes` is an exact expectation rather than a lower bound. A multi-row write needs it:
+ * the swap that moves a dish one place up updates two rows, and a batch where only one of
+ * them matched has left the menu in a worse state than doing nothing, while a batch where
+ * neither matched has done nothing at all. Those two outcomes look identical if the only
+ * question asked is "did anything change?".
+ */
+export interface AtomicExpectation {
+  /** Position of the statement inside the batch. */
+  readonly index: number;
+  /** Exact number of rows the statement must change. */
+  readonly changes: number;
+}
+
+/**
  * Runs `statements` so that either every one of them lands or none of them do.
  *
  * This exists because the two drivers disagree about how to be atomic, while the
@@ -79,7 +95,7 @@ function readChanges(result: unknown): number {
  * - **D1** has no `BEGIN`/`COMMIT` from inside a Worker; Cloudflare rejects them. Its
  *   atomicity primitive is `batch()`, which Cloudflare executes as a single
  *   transaction: if any statement fails, none of them are applied. Note that D1's
- *   batch has already committed by the time this promise resolves, so `mustChange`
+ *   batch has already committed by the time this promise resolves, so `expectations`
  *   can only be reported there, not enforced.
  * - **`better-sqlite3`**, used only by the unit suite, is the opposite: it has real
  *   `BEGIN`/`COMMIT` through `transaction()` and no batch at all. Its transactions
@@ -94,14 +110,18 @@ function readChanges(result: unknown): number {
  * A failure anywhere rejects the returned promise, and callers rely on that: a
  * partially applied batch is not a state this function will report as success.
  *
- * @param mustChange Index of a statement that has to change at least one row for
- * the batch to be considered applied. A statement that matched nothing throws, which
- * on `better-sqlite3` also rolls back the rest of the batch.
+ * @param expectations Statements whose changed-row count is checked once the batch has
+ *   run. On `better-sqlite3` a mismatch throws inside the transaction and rolls the whole
+ *   batch back, so the check is enforced. On D1 the batch is already committed when the
+ *   check runs, so a mismatch is reported to the caller and the caller decides what to do;
+ *   it is never silently accepted. This is why a repository that depends on an exact count
+ *   also arranges its writes so a mismatch is harmless: see the write token in
+ *   `owner.ts`.
  */
 export async function runAtomicBatch(
   db: Database,
   statements: readonly SqliteBatchItem[],
-  mustChange?: number,
+  expectations: readonly AtomicExpectation[] = [],
 ): Promise<AtomicStatementResult[]> {
   if (statements.length === 0) {
     return [];
@@ -111,7 +131,7 @@ export async function runAtomicBatch(
     const results = (await db.batch(statements)).map((result) => ({
       changes: readChanges(result),
     }));
-    assertChanged(results, mustChange);
+    assertChanged(results, expectations);
     return results;
   }
 
@@ -121,22 +141,61 @@ export async function runAtomicBatch(
     for (const statement of statements) {
       executed.push({ changes: readChanges(statement.run()) });
     }
-    // Checked here, inside the transaction, so a statement that matched nothing
-    // takes the rest of the batch down with it rather than committing a partial
-    // change.
-    assertChanged(executed, mustChange);
+    // Checked here, inside the transaction, so a statement that did not do what was
+    // expected takes the rest of the batch down with it rather than committing a
+    // partially applied change.
+    assertChanged(executed, expectations);
     return executed;
   });
 
   return results;
 }
 
-function assertChanged(results: readonly AtomicStatementResult[], mustChange: number | undefined): void {
-  if (mustChange === undefined) {
-    return;
+/**
+ * Thrown when a statement did not change the number of rows its caller required.
+ *
+ * Typed rather than a bare `Error` so callers can tell "the row I was guarding has moved
+ * on" apart from "the database is broken". `owner.ts` relies on that distinction to report
+ * a concurrent edit as something the owner can act on, rather than as a server error.
+ */
+export class AtomicBatchMismatchError extends Error {
+  constructor(
+    readonly statementIndex: number,
+    readonly actualChanges: number,
+    readonly expectedChanges: number,
+  ) {
+    super(
+      `Atomic batch statement ${statementIndex} changed ${actualChanges} rows, expected ${expectedChanges}`,
+    );
+    this.name = "AtomicBatchMismatchError";
   }
-  const result = results[mustChange];
-  if (result && result.changes === 0) {
-    throw new Error(`Atomic batch statement ${mustChange} changed no rows`);
+}
+
+/**
+ * Single-statement expectation, for the common "this row has to exist" case.
+ *
+ * Named rather than spelled inline at each call site so the intent reads as prose:
+ * a write that must land on exactly one row.
+ */
+export function expectExactlyOne(index: number): AtomicExpectation {
+  return { index, changes: 1 };
+}
+
+function assertChanged(
+  results: readonly AtomicStatementResult[],
+  expectations: readonly AtomicExpectation[],
+): void {
+  for (const expectation of expectations) {
+    const result = results[expectation.index];
+    /*
+     * A driver that reported nothing is not a row count to compare against, and it is
+     * reported as a mismatch rather than skipped. Treating "unknown" as "fine" would turn
+     * an unreported count into a pass, which is exactly the kind of quiet assumption this
+     * check exists to prevent.
+     */
+    const actual = result?.changes ?? -1;
+    if (actual !== expectation.changes) {
+      throw new AtomicBatchMismatchError(expectation.index, actual, expectation.changes);
+    }
   }
 }

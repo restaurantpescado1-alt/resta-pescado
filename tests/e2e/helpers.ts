@@ -39,6 +39,21 @@ export const SEEDED_ITEM_WITHOUT_IMAGE_ID = "item-soda";
 export const UPLOAD_TEST_ITEM_ID = "item-canette";
 
 /**
+ * Dishes the upload specs mutate.
+ *
+ * Every spec here that uploads has to use a dish nothing else makes an assertion about, or
+ * the suite becomes order-dependent and a failure looks like a product bug.
+ *
+ * `item-canette` is a drink with no species, so it is invisible to the fish-guide and
+ * menu-card assertions.
+ *
+ * The audit journal identifies a dish by name rather than by its id, because the dashboard is
+ * not allowed to show database terminology to the owner. Assertions about the journal therefore
+ * use these names, and the ids stay for locating a row on screen.
+ */
+export const UPLOAD_TEST_ITEM_NAME = "Canette";
+
+/**
  * Dishes the removal specs mutate.
  *
  * Removal is the one image operation that is reversible, so these specs restore the
@@ -48,7 +63,9 @@ export const UPLOAD_TEST_ITEM_ID = "item-canette";
  * would leave the second path unproven, and it is the one a visitor is likelier to hit.
  */
 export const REMOVAL_TEST_ITEM_ID = "item-merlan";
+export const REMOVAL_TEST_ITEM_NAME = "Merlan";
 export const REMOVAL_TEST_ITEM_WITHOUT_FISH_ID = "item-jus";
+export const REMOVAL_TEST_ITEM_WITHOUT_FISH_NAME = "Jus";
 
 /** The species slug mapped to {@link SEEDED_ITEM_ID}. */
 export const SEEDED_FISH_SLUG = "dorade";
@@ -113,11 +130,30 @@ export function useAnonymousSession(): void {
 
 export async function goToAdminMenu(page: Page): Promise<void> {
   await page.goto("/admin/menu");
-  await expect(page.getByTestId("menu-editor")).toBeVisible();
+  await expect(page.getByTestId("menu-manager")).toBeVisible();
 }
 
+/**
+ * The row for one dish, in the dashboard or on the public menu.
+ *
+ * Public rows are marked `data-item-id`; dashboard rows are marked `data-dish-id`, so the two
+ * never appear on the same page and this selector cannot match twice. Specs that check a change
+ * on both sides — a price saved here and read there — can keep asking for "the row for this
+ * dish" without caring which screen they are on.
+ */
 export function itemRow(page: Page, itemId: string = SEEDED_ITEM_ID): Locator {
-  return page.locator(`[data-item-id="${itemId}"]`);
+  return page.locator(`[data-item-id="${itemId}"], [data-dish-id="${itemId}"]`);
+}
+
+/**
+ * The newest audit entry.
+ *
+ * `listReadableAuditLogs` is capped at twenty rows and ordered newest first, so a whole-list
+ * containment check can be satisfied by an entry an earlier test wrote. The top row is the one
+ * that was just written.
+ */
+export function newestAuditEntry(page: Page): Locator {
+  return page.getByTestId("audit-list").locator("li").first();
 }
 
 /** Reads the price currently shown on the public menu for the seeded dish. */

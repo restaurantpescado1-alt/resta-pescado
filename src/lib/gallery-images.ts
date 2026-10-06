@@ -49,10 +49,14 @@ const GALLERY_HEIGHT = 900;
 /**
  * How much is known about where a photograph came from.
  *
- * - `unverified`: delivered as a curated export, but the repository cannot show whether
- *   it is an unaltered photograph of this restaurant. Needs owner confirmation.
+ * - `owner-confirmed`: the restaurant owner has stated that the file is a photograph of
+ *   this restaurant, and has stated what was changed. This records *their* statement; it
+ *   is not an independent verification, and nothing in this repository inspected the
+ *   images to reach it.
+ * - `unverified`: delivered as a curated export, and the owner has not yet said where it
+ *   came from. It must not be published as a photograph of the restaurant.
  */
-export type GalleryProvenance = "unverified";
+export type GalleryProvenance = "owner-confirmed" | "unverified";
 
 export interface BundledGalleryImage {
   /** Stable key, and the derived filename: `${slug}.webp`. */
@@ -67,13 +71,41 @@ export interface BundledGalleryImage {
   readonly width: number;
   readonly height: number;
   readonly provenance: GalleryProvenance;
+  /**
+   * French description of the edit the owner reported, shown on the gallery page next to
+   * the photographs.
+   *
+   * Non-null only for `owner-confirmed` entries that were adjusted. The owner confirmed
+   * that these photographs were edited for lighting only, with the portions and the scene
+   * content unchanged, so that is stated rather than implying the files are untouched.
+   */
+  readonly editNoteFr: string | null;
 }
 
+/**
+ * The disclosure shown on the gallery page.
+ *
+ * Derived from the manifest rather than typed out in the component, so the page cannot
+ * claim more or less than the data says. It only appears once there is at least one
+ * owner-confirmed photograph that reports an edit.
+ */
+const OWNER_CONFIRMED_EDIT_NOTE_FR =
+  "Ces photographies du restaurant ont été ajustées uniquement au niveau de la luminosité. " +
+  "Le contenu des images n'a pas été modifié.";
+
+/**
+ * `provenance` is a required argument rather than a default.
+ *
+ * A default would let the next photograph added here inherit a confirmation that was
+ * given about a different set of files. Forcing the choice means adding an entry is an
+ * explicit decision about what is known about it.
+ */
 function bundled(
   slug: string,
   altFr: string,
   sourceFile: string,
-  provenance: GalleryProvenance = "unverified",
+  provenance: GalleryProvenance,
+  editNoteFr: string | null = null,
 ): BundledGalleryImage {
   return {
     slug,
@@ -83,6 +115,7 @@ function bundled(
     width: GALLERY_WIDTH,
     height: GALLERY_HEIGHT,
     provenance,
+    editNoteFr: provenance === "owner-confirmed" ? (editNoteFr ?? OWNER_CONFIRMED_EDIT_NOTE_FR) : null,
   };
 }
 
@@ -95,36 +128,43 @@ const BUNDLED_GALLERY_IMAGES: readonly BundledGalleryImage[] = [
     "restaurant-dining-room",
     "La salle du restaurant, avec les tables dressées pour le service.",
     "gallery/restaurant-dining-room.png",
+    "owner-confirmed",
   ),
   bundled(
     "marine-decor-plants",
     "La décoration intérieure du restaurant, dans un style maritime avec des plantes.",
     "gallery/marine-decor-plants.png",
+    "owner-confirmed",
   ),
   bundled(
     "full-seafood-display",
     "Vue d'ensemble du comptoir de poissons et de fruits de mer.",
     "gallery/full-seafood-display.png",
+    "owner-confirmed",
   ),
   bundled(
     "fresh-seafood-counter",
     "Poissons et fruits de mer présentés sur le comptoir du restaurant.",
     "gallery/fresh-seafood-counter.png",
+    "owner-confirmed",
   ),
   bundled(
     "fresh-seafood-detail",
     "Sélection de poissons et de fruits de mer sur le comptoir.",
     "gallery/fresh-seafood-detail.png",
+    "owner-confirmed",
   ),
   bundled(
     "fresh-tuna-display",
     "Tranches de thon présentées sur le comptoir.",
     "gallery/fresh-tuna-display.png",
+    "owner-confirmed",
   ),
   bundled(
     "starters-and-salads",
     "Salades et entrées préparées, présentées avant le service.",
     "gallery/starters-and-salads.png",
+    "owner-confirmed",
   ),
 ];
 
@@ -143,6 +183,93 @@ export const BUNDLED_GALLERY_COUNT = BUNDLED_GALLERY_IMAGES.length;
 
 export function getBundledGalleryImage(slug: string): BundledGalleryImage | undefined {
   return BUNDLED_GALLERY_IMAGES.find((image) => image.slug === slug);
+}
+
+/**
+ * What the owner has decided about one bundled photograph, as stored in
+ * `bundled_gallery_images`.
+ *
+ * Kept structurally separate from `BundledGalleryImage`: one row is database state about a
+ * file, the other is the file's identity. Nothing here describes a photograph, which is why
+ * `version` can be 0 to mean "no row yet".
+ */
+export interface BundledGalleryState {
+  readonly slug: string;
+  readonly altTextFr: string;
+  readonly captionFr: string | null;
+  readonly sortOrder: number;
+  readonly isVisible: boolean;
+  /**
+   * 0 means the photograph has no database row yet.
+   *
+   * That is a real state and not a passing one: production applies migrations and never
+   * runs `scripts/seed-local.ts`, so the table starts empty there and a photograph the owner
+   * has never edited has no row. Zero is outside the range any seeded or edited row can hold,
+   * since those start at 1, so "no row" cannot be mistaken for "row at revision zero".
+   */
+  readonly version: number;
+}
+
+/** One bundled photograph: what the file is, plus what the owner has decided about it. */
+export interface MergedBundledGalleryImage extends BundledGalleryImage {
+  readonly altTextFr: string;
+  readonly captionFr: string | null;
+  readonly sortOrder: number;
+  readonly isVisible: boolean;
+  readonly version: number;
+}
+
+/** The state a photograph has before the owner has changed anything about it. */
+export function defaultBundledGalleryState(
+  image: BundledGalleryImage,
+  sortOrder: number,
+): BundledGalleryState {
+  return {
+    slug: image.slug,
+    altTextFr: image.altFr,
+    captionFr: null,
+    sortOrder,
+    isVisible: true,
+    version: 0,
+  };
+}
+
+/**
+ * Combines the manifest with the owner's stored state.
+ *
+ * The manifest is the list of what exists; the table is the owner's opinion about it. This
+ * is the only place the two are combined, which is what keeps `/galerie` and the dashboard
+ * from disagreeing about the same photograph.
+ *
+ * A photograph with no row falls back to the manifest baseline rather than disappearing.
+ * That fallback is load-bearing rather than defensive: production applies `drizzle/0002` and
+ * never runs `scripts/seed-local.ts`, so on a freshly deployed database the table is empty.
+ * Reading the gallery only from the table would blank `/galerie` for every photograph already
+ * on the site the day the migration was applied.
+ *
+ * Rows whose slug is no longer in the manifest are dropped, because there is no file behind
+ * them to render and `docs/CONTENT_POLICY.md` rules out substituting a different image for a
+ * missing one.
+ *
+ * Ordering is the owner's `sortOrder`. Equal values fall back to the curated position,
+ * because `Array.prototype.sort` is required to be stable, so photographs mapped in manifest
+ * order keep that order among themselves. The alternative, letting SQLite decide, would make
+ * the gallery order an accident of the query plan.
+ */
+export function mergeBundledGalleryState(rows: readonly BundledGalleryState[]): MergedBundledGalleryImage[] {
+  const bySlug = new Map(rows.map((row) => [row.slug, row]));
+
+  return BUNDLED_GALLERY_IMAGES.map((image, manifestIndex) => {
+    const row = bySlug.get(image.slug);
+    return {
+      ...image,
+      altTextFr: row?.altTextFr ?? image.altFr,
+      captionFr: row?.captionFr ?? null,
+      sortOrder: row?.sortOrder ?? manifestIndex + 1,
+      isVisible: row?.isVisible ?? true,
+      version: row?.version ?? 0,
+    };
+  }).sort((left, right) => left.sortOrder - right.sortOrder);
 }
 
 /**

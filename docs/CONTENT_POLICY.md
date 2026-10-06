@@ -14,3 +14,13 @@ Never copy Google image search results or competitor photos. Never invent portio
 Allowed enhancement: exposure, white balance, crop, background cleanup, sharpness, plate-edge cleanup.
 
 Forbidden enhancement: larger portion, different fish, added ingredients, different cooking method, or materially different presentation.
+
+## Applied to the bundled gallery photographs
+
+The owner confirmed in phase 3 that the photographs in `public/images/gallery/` are from the
+restaurant, edited only for lighting, with the portions and the scene content unchanged.
+
+That falls inside the allowed list: an exposure and white-balance adjustment is a "faithful
+enhancement of a real photo", which this policy ranks second, and it is not any of the
+forbidden changes. `docs/GALLERY.md` records the confirmation, what it does not establish, and
+the separate open question of consent for people who may appear in the photographs.

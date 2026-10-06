@@ -93,9 +93,10 @@ test.describe("public menu", () => {
     expect(Number(price)).toBeGreaterThan(0);
   });
 
-  test("public pages do not expose the admin surface", async ({ page }) => {
+test("public pages do not expose the admin surface", async ({ page }) => {
     await page.goto("/menu");
-    await expect(page.getByTestId("menu-editor")).toHaveCount(0);
+    await expect(page.getByTestId("menu-manager")).toHaveCount(0);
+    await expect(page.getByTestId("dish-row")).toHaveCount(0);
   });
 });
 
@@ -410,16 +411,22 @@ test.describe("gallery", () => {
     expect(text).not.toMatch(/plat servi|nos plats/i);
   });
 
-  test("states that the photographs are not yet verified", async ({ page }) => {
+  test("discloses the lighting edit the owner reported", async ({ page }) => {
     await page.goto("/galerie");
 
     /*
-     * The honest state of these files, and the reason `provenance: "unverified"` is in
-     * the data rather than only in the docs. `docs/CONTENT_POLICY.md` forbids passing
-     * materially different work off as documentary, so the page must not imply these are
-     * confirmed photographs of this restaurant.
+     * The owner confirmed the photographs are from the restaurant and were edited only
+     * for lighting. `docs/CONTENT_POLICY.md` forbids passing materially different work off
+     * as documentary, so a confirmed set still has to say what was done to it rather than
+     * let a visitor assume an untouched original.
      */
-    await expect(page.getByText(/à confirmer/i).first()).toBeVisible();
+    await expect(page.getByTestId("gallery-edit-note")).toContainText(
+      "ajustées uniquement au niveau de la luminosité",
+    );
+
+    // And it says nothing about portions or scene content having changed.
+    const text = (await page.locator("body").innerText()).toLowerCase();
+    expect(text).not.toMatch(/portions? modifi|contenu modifi/);
   });
 
   test("the empty state still exists for a gallery with no photographs", async ({ page }) => {
