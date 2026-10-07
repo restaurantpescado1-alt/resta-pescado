@@ -44,11 +44,11 @@
   //
   // Fill in before any remote preview deploy (placeholders are deliberately
   // unusable so an unfilled config fails closed):
-  //   - database_id: run `wrangler d1 create resta-pescado-preview-db` and paste
-  //     the returned ID here. Never copy the production database_id.
-  //     The placeholder must stay distinct from the top-level one: local wrangler
-  //     storage is keyed by database_id, so reusing it would point preview at the
-  //     production local database.
+  //   - database_id: set to the preview database's ID (`wrangler d1 create
+  //     resta-pescado-preview-db` created it). Never copy the top-level
+  //     (production) database_id: local wrangler storage is keyed by
+  //     database_id, so reusing it would point preview at the production local
+  //     database.
   //   - workers.dev: requires an account workers.dev subdomain to be configured.
   //
   // The R2 bucket bindings that this config held until Phase 5 are gone. Stored
@@ -79,15 +79,18 @@
         {
           "binding": "DB",
           "database_name": "resta-pescado-preview-db",
-          "database_id": "00000000-0000-0000-0000-000000000002",
+          "database_id": "c3de7d61-362e-4e5b-bb22-5c7487e78f35",
           "migrations_dir": "drizzle"
         }
       ],
       "vars": {
         "NEXTJS_ENV": "production",
         "DEPLOYMENT_MODE": "preview",
+        // Preview carries the confirmed public endpoint; the top-level
+        // (production) vars still hold PLACEHOLDER_ENDPOINT on purpose, so a
+        // production deploy fails closed until that value is promoted.
         "MEDIA_PROVIDER": "imagekit",
-        "IMAGEKIT_URL_ENDPOINT": "https://ik.imagekit.io/PLACEHOLDER_ENDPOINT"
+        "IMAGEKIT_URL_ENDPOINT": "https://ik.imagekit.io/restapescado"
       }
     }
   }
