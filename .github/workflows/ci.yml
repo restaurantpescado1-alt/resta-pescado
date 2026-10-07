@@ -1,0 +1,85 @@
+name: CI - local verification gate
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Seven local gates in documented order
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      # Playwright drives its own locally-installed Chromium. workerd (via Wrangler)
+      # and Chromium share the same system libraries, so this one install covers both.
+      - name: Install Playwright Chromium and system libraries
+        run: npx playwright install --with-deps chromium
+
+      # Fake, local-only credentials: .dev.vars is gitignored and never leaves the
+      # runner. The suite signs the owner in with OWNER_PASSWORD and needs a real
+      # BETTER_AUTH_SECRET (>= 32 chars) to sign session cookies.
+      - name: Write local-only fake credentials to .dev.vars
+        run: |
+          cat > .dev.vars <<'EOF'
+          BETTER_AUTH_SECRET=ci-only-fake-secret-0123456789abcdefghijklmnop
+          BETTER_AUTH_URL=http://localhost:8787
+          OWNER_EMAIL=owner@resta-pescado.local
+          OWNER_PASSWORD=fake-owner-password-CI-0123456789
+          OWNER_NAME=Propriétaire
+          EOF
+
+      # The exact pipeline from docs/DEPLOYMENT_CHECKLIST.md section 2, in order:
+      # cf-typegen first so typecheck and build read today's bindings, and the
+      # end-to-end suite boots the real Worker in workerd against local D1 and R2.
+      # db:migrate:local must run first: the seed refuses to run without a local
+      # D1 database, and the Playwright webServer only seeds and previews.
+      - name: 1/7 Regenerate Cloudflare type bindings
+        run: npm run cf-typegen
+
+      - name: 2/7 Lint
+        run: npm run lint
+
+      - name: 3/7 Typecheck
+        run: npm run typecheck
+
+      - name: 4/7 Unit and repository tests
+        run: npm test
+
+      - name: 5/7 End-to-end suite (workerd, local D1, local R2)
+        run: |
+          npm run db:migrate:local
+          npm run test:e2e
+
+      - name: 6/7 Next.js build
+        run: npm run build
+
+      - name: 7/7 OpenNext Cloudflare build
+        run: npm run build:cf
+
+      - name: Upload Playwright test results on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: ignore
