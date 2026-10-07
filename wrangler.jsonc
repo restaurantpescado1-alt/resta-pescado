@@ -42,14 +42,19 @@
   // Preview environment: a separate Worker with its own D1 database, so preview
   // work never reads or writes production data.
   //
-  // Fill in before any remote preview deploy (placeholders are deliberately
-  // unusable so an unfilled config fails closed):
-  //   - database_id: set to the preview database's ID (`wrangler d1 create
-  //     resta-pescado-preview-db` created it). Never copy the top-level
-  //     (production) database_id: local wrangler storage is keyed by
-  //     database_id, so reusing it would point preview at the production local
-  //     database.
-  //   - workers.dev: requires an account workers.dev subdomain to be configured.
+  // Configured for this account — never copy these into the top-level block;
+  // production stays fail-closed until it is deliberately promoted:
+  //   - database_id: resta-pescado-preview-db. Local wrangler storage is keyed
+  //     by database_id, so preview and production must stay distinct or preview
+  //     would point at the production local database.
+  //   - workers.dev subdomain: restaurantpescado1, giving the preview origin
+  //     https://resta-pescado-preview.restaurantpescado1.workers.dev.
+  //   - BETTER_AUTH_URL / BETTER_AUTH_TRUSTED_ORIGINS: that exact origin.
+  //     src/auth.ts reads the former as Better Auth's baseURL; Better Auth
+  //     reads the latter from the environment for its CSRF origin check.
+  //     IMAGEKIT_PRIVATE_KEY and BETTER_AUTH_SECRET are Worker secrets on top
+  //     of these vars: `wrangler secret put <name> --env preview`, never
+  //     committed.
   //
   // The R2 bucket bindings that this config held until Phase 5 are gone. Stored
   // media is delivered by the configured provider (IMAGEKIT_URL_ENDPOINT + the
@@ -86,6 +91,12 @@
       "vars": {
         "NEXTJS_ENV": "production",
         "DEPLOYMENT_MODE": "preview",
+        // The exact preview origin (workers.dev subdomain `restaurantpescado1`,
+        // worker name `resta-pescado-preview`). Public values, so they are vars
+        // rather than secrets; a wrong origin here breaks login and lets no
+        // cross-origin request pass the CSRF check.
+        "BETTER_AUTH_URL": "https://resta-pescado-preview.restaurantpescado1.workers.dev",
+        "BETTER_AUTH_TRUSTED_ORIGINS": "https://resta-pescado-preview.restaurantpescado1.workers.dev",
         // Preview carries the confirmed public endpoint; the top-level
         // (production) vars still hold PLACEHOLDER_ENDPOINT on purpose, so a
         // production deploy fails closed until that value is promoted.
