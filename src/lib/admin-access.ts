@@ -39,7 +39,8 @@ export class NotOwnerError extends Error {
  *   gets a tight one. These are the operations with no undo, so a stuck retry loop must not
  *   be able to work through them quickly.
  *
- * Uploads are tighter than edits because each one writes an object to R2, which costs
+ * Uploads are tighter than edits because each one writes an object to the media
+ * store, which costs
  * storage whether or not the database change is kept.
  */
 export const ADMIN_RATE_LIMITS: Record<string, RateLimitRule> = {

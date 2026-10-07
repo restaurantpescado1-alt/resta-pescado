@@ -36,7 +36,9 @@ jobs:
 
       # Fake, local-only credentials: .dev.vars is gitignored and never leaves the
       # runner. The suite signs the owner in with OWNER_PASSWORD and needs a real
-      # BETTER_AUTH_SECRET (>= 32 chars) to sign session cookies.
+      # BETTER_AUTH_SECRET (>= 32 chars) to sign session cookies. The ImageKit
+      # block points every media call at the local fake server Playwright starts,
+      # so no real ImageKit account is ever needed here either.
       - name: Write local-only fake credentials to .dev.vars
         run: |
           cat > .dev.vars <<'EOF'
@@ -45,13 +47,19 @@ jobs:
           OWNER_EMAIL=owner@resta-pescado.local
           OWNER_PASSWORD=fake-owner-password-CI-0123456789
           OWNER_NAME=Propriétaire
+          MEDIA_PROVIDER=imagekit
+          IMAGEKIT_URL_ENDPOINT=http://127.0.0.1:8788
+          IMAGEKIT_PRIVATE_KEY=ci-only-fake-imagekit-key
+          IMAGEKIT_UPLOAD_BASE=http://127.0.0.1:8788
+          IMAGEKIT_API_BASE=http://127.0.0.1:8788
           EOF
 
       # The exact pipeline from docs/DEPLOYMENT_CHECKLIST.md section 2, in order:
       # cf-typegen first so typecheck and build read today's bindings, and the
-      # end-to-end suite boots the real Worker in workerd against local D1 and R2.
-      # db:migrate:local must run first: the seed refuses to run without a local
-      # D1 database, and the Playwright webServer only seeds and previews.
+      # end-to-end suite boots the real Worker in workerd against local D1 and the
+      # fake ImageKit server. db:migrate:local must run first: the seed refuses to
+      # run without a local D1 database, and the Playwright webServer only seeds and
+      # previews.
       - name: 1/7 Regenerate Cloudflare type bindings
         run: npm run cf-typegen
 
@@ -64,7 +72,7 @@ jobs:
       - name: 4/7 Unit and repository tests
         run: npm test
 
-      - name: 5/7 End-to-end suite (workerd, local D1, local R2)
+      - name: 5/7 End-to-end suite (workerd, local D1, fake ImageKit)
         run: |
           npm run db:migrate:local
           npm run test:e2e

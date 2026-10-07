@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { getDb } from "@/db";
-import { getMediaBucket } from "@/db/media";
+import { getMediaProvider } from "@/db/media";
 import { consumeRateLimit } from "@/db/repositories/admin";
 import {
   getMenuItem,
@@ -16,11 +16,35 @@ import type { ActionResult } from "@/lib/action-result";
 import { requireOwnerOrThrow } from "@/lib/authz";
 import { removeImageSafely } from "@/lib/image-remove";
 import { replaceImageSafely } from "@/lib/image-replace";
-import { buildR2Key, validateImageUpload } from "@/lib/images";
+import { buildImageKey, validateImageUpload } from "@/lib/images";
+import type { MediaAssetRef } from "@/lib/media-provider";
 import { updateFeaturedInputSchema, updatePriceInputSchema } from "@/lib/validation";
+import type { MediaProvider } from "@/lib/media-provider";
 
 function failure(message: string): ActionResult {
   return { ok: false, message };
+}
+
+/**
+ * Best-effort delete for the flows that treat "the object is already gone" as
+ * success. A `not-performed` outcome is the legacy R2 shim reporting that no
+ * binding exists to act on: log it so the operator knows an orphan could not be
+ * cleaned up, but do not fail the request.
+ */
+async function deleteMediaAsset(provider: MediaProvider, ref: MediaAssetRef): Promise<void> {
+  const result = await provider.delete(ref);
+  if (result.status === "not-performed") {
+    console.error(
+      `Media delete not performed: key=${ref.key} provider=${ref.provider} reason=${result.reason}`,
+    );
+  }
+}
+
+/** Builds the stored ref for a row that already points at an image. */
+function imageRef(existing: { mediaProvider: "r2" | "imagekit"; imageKey: string | null; providerAssetId: string | null }): MediaAssetRef | null {
+  return existing.imageKey
+    ? { provider: existing.mediaProvider, key: existing.imageKey, assetId: existing.providerAssetId }
+    : null;
 }
 
 /**
@@ -30,7 +54,7 @@ function failure(message: string): ActionResult {
  *   1. authorize  (anonymous or wrong role stops here)
  *   2. rate limit (before parsing, so a flood costs nothing)
  *   3. validate   (before any write)
- *   4. write      (R2 first, then D1, then cleanup)
+ *   4. write      (media store first, then D1, then cleanup)
  *   5. audit      (always, for success and for a write that failed midway)
  */
 
@@ -170,7 +194,7 @@ export async function removeDishImageAction(formData: FormData): Promise<ActionR
   }
 
   const db = getDb();
-  const media = getMediaBucket();
+  const provider = getMediaProvider();
 
   const limit = await consumeRateLimit(db, owner.id, ADMIN_RATE_LIMITS.removeDishImage!);
   if (!limit.allowed) {
@@ -187,14 +211,15 @@ export async function removeDishImageAction(formData: FormData): Promise<ActionR
     return failure("Plat introuvable.");
   }
 
-  const previousKey = existing.imageKey;
+  const previous = imageRef(existing);
+  const previousKey = previous?.key ?? null;
 
   /*
    * The bundled fish illustrations live in `public/` and are served by the Worker
-   * directly, never from R2. `menu_items.image_key` only ever holds R2 keys, but the
-   * guard is kept explicit anyway: deleting a key that happens to look like a bundled
-   * path would turn a tidy-up into broken reference illustrations across the whole site,
-   * and the cost of the check is one comparison.
+   * directly, never from the media store. `menu_items.image_key` only ever holds stored
+   * keys, but the guard is kept explicit anyway: deleting a key that happens to look like
+   * a bundled path would turn a tidy-up into broken reference illustrations across the
+   * whole site, and the cost of the check is one comparison.
    */
   if (previousKey && previousKey.startsWith("/")) {
     return failure("Cette image fait partie du site et ne peut pas être supprimée ici.");
@@ -203,13 +228,13 @@ export async function removeDishImageAction(formData: FormData): Promise<ActionR
   // Commit first, then delete. See `removeImageSafely` for why the order is inverted
   // compared with replacement and what each failure costs.
   const outcome = await removeImageSafely({
-    previousKey,
+    previous,
     commit: () =>
       updateMenuItemImageKeyWithAudit(db, {
         menuItemId,
-        // `null` is a valid value for this column, and the batch below clears it
-        // together with the audit row, so the two cannot come apart.
-        imageKey: null,
+        // `null` clears the reference and the provider columns together, and the batch
+        // records the audit row with them, so the two cannot come apart.
+        media: null,
         audit: {
           actorId: owner.id,
           action: "menu_item.image_removed",
@@ -227,15 +252,15 @@ export async function removeDishImageAction(formData: FormData): Promise<ActionR
           },
         },
       }),
-    remove: (key) => media.delete(key),
+    remove: (ref) => deleteMediaAsset(provider, ref),
     /*
      * The database already committed by this point, so restoring the old reference is
      * explicitly not an option: it would point a dish the owner deliberately cleared at
      * an object that failed to delete. The orphan is logged instead.
      */
-    onOrphan: (key, error) => {
+    onOrphan: (ref, error) => {
       console.error(
-        `Dish image orphaned in R2: key=${key} menuItemId=${menuItemId}. ` +
+        `Dish image orphaned: key=${ref.key} provider=${ref.provider} menuItemId=${menuItemId}. ` +
           "The database no longer references it. Delete it manually.",
         error,
       );
@@ -276,7 +301,7 @@ export async function replaceDishImageAction(formData: FormData): Promise<Action
   }
 
   const db = getDb();
-  const media = getMediaBucket();
+  const provider = getMediaProvider();
 
   const limit = await consumeRateLimit(db, owner.id, ADMIN_RATE_LIMITS.replaceDishImage!);
   if (!limit.allowed) {
@@ -306,26 +331,27 @@ export async function replaceDishImageAction(formData: FormData): Promise<Action
     return failure("Plat introuvable.");
   }
 
-  const previousKey = existing.imageKey;
-  const newKey = buildR2Key(validated.extension);
+  const previous = imageRef(existing);
+  const previousKey = previous?.key ?? null;
+  const newKey = buildImageKey(validated.extension);
 
   // Upload, commit, then clean up, in that order. See `replaceImageSafely` for why
   // neither of the two deletes can happen any earlier than it does.
   await replaceImageSafely({
     newKey,
-    previousKey,
-    upload: async () => {
-      await media.put(newKey, validated.bytes, {
-        httpMetadata: {
-          contentType: validated.mimeType,
-          cacheControl: "public, max-age=31536000, immutable",
-        },
-      });
-    },
-    commit: () =>
+    previous,
+    upload: () =>
+      provider.upload({
+        key: newKey,
+        bytes,
+        contentType: validated.mimeType,
+        width: validated.dimensions.width,
+        height: validated.dimensions.height,
+      }),
+    commit: (uploaded) =>
       updateMenuItemImageKeyWithAudit(db, {
         menuItemId,
-        imageKey: newKey,
+        media: uploaded,
         audit: {
           actorId: owner.id,
           action: "menu_item.image_replaced",
@@ -333,7 +359,8 @@ export async function replaceDishImageAction(formData: FormData): Promise<Action
           entityId: menuItemId,
           metadata: {
             from: previousKey,
-            to: newKey,
+            to: uploaded.key,
+            provider: uploaded.provider,
             bytes: bytes.byteLength,
             width: validated.dimensions.width,
             height: validated.dimensions.height,
@@ -342,7 +369,7 @@ export async function replaceDishImageAction(formData: FormData): Promise<Action
           },
         },
       }),
-    remove: (key) => media.delete(key),
+    remove: (ref) => deleteMediaAsset(provider, ref),
   });
 
   revalidatePath("/");

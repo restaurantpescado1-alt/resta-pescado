@@ -18,7 +18,8 @@ import { mediaUrl } from "@/lib/format";
  * Its own component rather than part of the dish form because the photograph and the featured
  * flag are each a single write of one column, and they must not be saved by accident as a side
  * effect of editing the name, the description or the price. It is also the only part of the
- * editor that touches R2, so it is the part worth reading on its own when an upload misbehaves.
+ * editor that writes through the media provider, so it is the part worth reading on its own
+ * when an upload misbehaves.
  *
  * These three controls deliberately do not take an `expectedVersion`. They were written before
  * the version guard existed and each one is idempotent — it writes one column or sets one flag

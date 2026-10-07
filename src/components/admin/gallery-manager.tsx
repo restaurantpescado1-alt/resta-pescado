@@ -25,7 +25,7 @@ import { MAX_IMAGE_BYTES } from "@/lib/images";
  *
  * The two kinds are kept visibly apart because they are not the same thing. A bundled
  * photograph is a file in `public/`, so it cannot be deleted and can only be hidden; an upload
- * lives in R2 behind the media route and can be removed. One editable list with one set of
+ * lives in the media store behind the media route and can be removed. One editable list with one set of
  * controls would either offer a delete that cannot work, or hide the one that should.
  *
  * Ordering is by "move up"/"move down" buttons held in local state and saved as a whole list.
@@ -412,7 +412,7 @@ function BundledRow({
   );
 }
 
-/** One uploaded photograph: the same fields, plus a delete that removes the R2 object too. */
+/** One uploaded photograph: the same fields, plus a delete that removes the stored asset too. */
 function UploadedRow({
   image,
   isPending,

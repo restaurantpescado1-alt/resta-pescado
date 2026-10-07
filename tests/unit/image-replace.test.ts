@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { replaceImageSafely, type ImageReplacementSteps } from "../../src/lib/image-replace";
+import type { MediaAssetRef } from "../../src/lib/media-provider";
 
 /**
  * These tests exist because the ordering in `replaceImageSafely` cannot be seen from
@@ -8,22 +9,26 @@ import { replaceImageSafely, type ImageReplacementSteps } from "../../src/lib/im
  * 404, or an object deleted while the database still references it. Asserting on the
  * call log is the only way to pin that down.
  */
+const old = { provider: "r2", key: "menu/2026/old.png", assetId: "menu/2026/old.png" } as const;
+const fresh = { provider: "imagekit", key: "menu/2026/new.png", assetId: "fileId-new" } as const;
+
 function recorder() {
   const calls: string[] = [];
   return {
     calls,
     steps(overrides: Partial<ImageReplacementSteps> = {}): ImageReplacementSteps {
       return {
-        newKey: "menu/2026/new.png",
-        previousKey: "menu/2026/old.png",
+        newKey: fresh.key,
+        previous: old,
         upload: async () => {
           calls.push("upload");
+          return fresh;
         },
         commit: async () => {
           calls.push("commit");
         },
-        remove: async (key) => {
-          calls.push(`remove:${key}`);
+        remove: async (ref: MediaAssetRef) => {
+          calls.push(`remove:${ref.key}`);
         },
         ...overrides,
       };
@@ -32,7 +37,7 @@ function recorder() {
 }
 
 describe("image replacement ordering", () => {
-  it("uploads, commits, then removes the previous object", async () => {
+  it("uploads, commits, then removes the previous asset", async () => {
     const { calls, steps } = recorder();
 
     await replaceImageSafely(steps());
@@ -40,7 +45,7 @@ describe("image replacement ordering", () => {
     expect(calls).toEqual(["upload", "commit", "remove:menu/2026/old.png"]);
   });
 
-  it("removes the new object when the commit fails", async () => {
+  it("removes the new asset when the commit fails", async () => {
     const { calls, steps } = recorder();
 
     await expect(
@@ -54,12 +59,12 @@ describe("image replacement ordering", () => {
       ),
     ).rejects.toThrow("D1 batch failed");
 
-    // The new key is cleaned up because nothing ever referenced it.
+    // The new asset is cleaned up because nothing ever referenced it.
     expect(calls).toEqual(["upload", "commit", "remove:menu/2026/new.png"]);
   });
 
-  it("never removes the previous object when the commit fails", async () => {
-    // The batch rolled back, so the dish still points at the old object. Deleting it
+  it("never removes the previous asset when the commit fails", async () => {
+    // The batch rolled back, so the dish still points at the old asset. Deleting it
     // here would break a live image in order to clean up an orphan.
     const { calls, steps } = recorder();
 
@@ -87,7 +92,7 @@ describe("image replacement ordering", () => {
     );
   });
 
-  it("does not touch R2 when the upload itself fails", async () => {
+  it("touches nothing when the upload itself fails", async () => {
     const { calls, steps } = recorder();
 
     await expect(
@@ -95,11 +100,11 @@ describe("image replacement ordering", () => {
         steps({
           upload: async () => {
             calls.push("upload");
-            throw new Error("R2 rejected the upload");
+            throw new Error("ImageKit rejected the upload");
           },
         }),
       ),
-    ).rejects.toThrow("R2 rejected the upload");
+    ).rejects.toThrow("ImageKit rejected the upload");
 
     // Committing a key whose object does not exist would be worse than failing.
     expect(calls).toEqual(["upload"]);
@@ -108,15 +113,17 @@ describe("image replacement ordering", () => {
   it("has nothing to remove when the dish had no image", async () => {
     const { calls, steps } = recorder();
 
-    await replaceImageSafely(steps({ previousKey: null }));
+    await replaceImageSafely(steps({ previous: null }));
 
     expect(calls).toEqual(["upload", "commit"]);
   });
 
-  it("does not delete an object twice when the key is unchanged", async () => {
+  it("does not delete an asset twice when the key is unchanged", async () => {
     const { calls, steps } = recorder();
 
-    await replaceImageSafely(steps({ newKey: "menu/2026/same.png", previousKey: "menu/2026/same.png" }));
+    await replaceImageSafely(
+      steps({ newKey: "menu/2026/same.png", previous: { ...old, key: "menu/2026/same.png" } }),
+    );
 
     expect(calls).toEqual(["upload", "commit"]);
   });
@@ -133,9 +140,9 @@ describe("image replacement ordering", () => {
             calls.push("commit");
             throw new Error("D1 batch failed");
           },
-          remove: async (key) => {
-            calls.push(`remove:${key}`);
-            throw new Error("R2 delete failed");
+          remove: async (ref: MediaAssetRef) => {
+            calls.push(`remove:${ref.key}`);
+            throw new Error("ImageKit delete failed");
           },
         }),
       ),
@@ -144,17 +151,17 @@ describe("image replacement ordering", () => {
     expect(calls).toEqual(["upload", "commit", "remove:menu/2026/new.png"]);
   });
 
-  it("treats a delete of the old object as non-fatal", async () => {
-    // The replacement already succeeded and committed. A stale object is a storage
+  it("treats a delete of the old asset as non-fatal", async () => {
+    // The replacement already succeeded and committed. A stale asset is a storage
     // cost, not a broken image, so it must not fail the request.
-    const remove = vi.fn(async (key: string) => {
-      throw new Error(`cannot delete ${key}`);
+    const remove = vi.fn(async (ref: MediaAssetRef) => {
+      throw new Error(`cannot delete ${ref.key}`);
     });
 
     await expect(
       replaceImageSafely(recorder().steps({ remove })),
     ).resolves.toBeUndefined();
 
-    expect(remove).toHaveBeenCalledExactlyOnceWith("menu/2026/old.png");
+    expect(remove).toHaveBeenCalledExactlyOnceWith(old);
   });
 });

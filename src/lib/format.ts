@@ -8,7 +8,7 @@ export function formatPrice(priceDa: number): string {
   return `${new Intl.NumberFormat("fr-DZ", { maximumFractionDigits: 0 }).format(priceDa)} DA`;
 }
 
-/** Renders an R2 key as a public URL served by the Worker. */
+/** Renders an image key as the proxy URL served by the Worker. */
 export function mediaUrl(imageKey: string): string {
   return `/api/media/${imageKey.split("/").map(encodeURIComponent).join("/")}`;
 }

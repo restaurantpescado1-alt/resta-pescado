@@ -166,14 +166,32 @@ export const menuItems = sqliteTable(
     descriptionFr: text("description_fr"),
     /** Algerian dinar, whole units. Stored as an integer, never a float. */
     priceDa: integer("price_da").notNull(),
-    /** Randomised R2 object key, or null while no image is set. */
+    /**
+     * Randomised delivery path of the dish photograph, or null while no image is
+     * set. Shape `menu/{year}/{uuid}.{ext}` whichever provider hosts the bytes:
+     * it is the key `/api/media` serves, the R2 object key historically, and the
+     * ImageKit `filePath` today.
+     */
     imageKey: text("image_key"),
+    /**
+     * Which provider stores the row's image. The migration default is `r2` (the
+     * historical store); every new upload records the active provider's name so a
+     * deletion knows which handle to call. Values only ever come from our code.
+     */
+    mediaProvider: text("media_provider", { enum: ["r2", "imagekit"] }).notNull().default("r2"),
+    /**
+     * Provider-specific identifier for the stored asset: the ImageKit `fileId`
+     * used by its delete API. Legacy R2 rows have no such id — the object key is
+     * the identifier — so it is null there and the delete acts on `imageKey`.
+     */
+    providerAssetId: text("provider_asset_id"),
     /**
      * Key into `src/lib/fish-images.ts`, pointing at an AI-generated *reference
      * illustration* of the fish species.
      *
      * Kept separate from `imageKey` on purpose. `imageKey` is a real photograph of
-     * the cooked dish in R2; this is a drawing of the animal, in `public/`, that
+     * the cooked dish in the media store; this is a drawing of the animal, in
+     * `public/`, that
      * answers "which fish is this" and must never be shown as "what the dish looks
      * like". Collapsing them into one column would make that distinction
      * unrenderable, and it would put a static asset behind the authenticated media
@@ -212,8 +230,15 @@ export const galleryImages = sqliteTable(
   "gallery_images",
   {
     id: text("id").primaryKey(),
-    /** Randomised R2 object key, following `gallery/{year}/{uuid}.webp`. */
+    /**
+     * Randomised delivery path of the owner-uploaded photograph, following
+     * `gallery/{year}/{uuid}.webp`. As with dish photos the shape is the same
+     * whichever provider holds the bytes (R2 object key historically, ImageKit
+     * `filePath` today) — `/api/media` is the only way a browser reaches it.
+     */
     imageKey: text("image_key").notNull(),
+    mediaProvider: text("media_provider", { enum: ["r2", "imagekit"] }).notNull().default("r2"),
+    providerAssetId: text("provider_asset_id"),
     /**
      * Required. An image with no description is unusable to a screen-reader user, so
      * this is not nullable the way `menu_items.descriptionFr` is.
@@ -247,11 +272,11 @@ export const galleryImages = sqliteTable(
  * what the owner is allowed to change about them, and it is seeded from the manifest so a
  * fresh database has one row per bundled photograph.
  *
- * **Why not one table.** `gallery_images` above is R2-only: `imageKey` is `not null` and
- * every path that serves or deletes an uploaded photograph goes through it. A bundled
- * photograph has no R2 key at all, so putting both in one table would mean either a
- * nullable key on the uploaded side or a fake key on the bundled side. The fake key is the
- * dangerous one: it would let a `/images/gallery/webp/...` public path reach `media.delete`
+ * **Why not one table.** `gallery_images` holds provider-hosted photographs: `imageKey` is
+ * `not null` and every path that serves or deletes an uploaded photograph goes through it. A
+ * bundled photograph has no stored key at all, so putting both in one table would mean either
+ * a nullable key on the uploaded side or a fake key on the bundled side. The fake key is the
+ * dangerous one: it would let a `/images/gallery/webp/...` public path reach `provider.delete`
  * and quietly break the shipped asset. Two tables make that unrepresentable rather than
  * merely discouraged, and it is why `listBundledGalleryState` and `getAdminGallery` are
  * separate reads joined only when a page wants both.

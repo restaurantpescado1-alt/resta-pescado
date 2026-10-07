@@ -9,23 +9,33 @@ Everything below has been run or read on the machine that produced it; nothing i
 | --- | --- |
 | `npm run lint` | passes, `eslint .` over `src`, `tests`, `scripts`, config |
 | `npm run typecheck` | passes, `tsc --noEmit`, strict |
-| `npm run test` | 15 files, 312 tests, all passing |
+| `npm run test` | 17 files, 359 tests, all passing |
 | `npm run test:e2e` | 101 passed, 2 skipped (both screenshot captures, `CAPTURE_SCREENSHOTS` unset) |
 | `npm run build` | passes; every route listed, `admin` and `api/media` among them |
 | `npm run build:cf` | passes; OpenNext emits `.open-next/worker.js` |
-| `npm run cf-typegen` | passes; `cloudflare-env.d.ts` matches `wrangler.jsonc` including `DEPLOYMENT_MODE` |
-| Local migrations | `0000`–`0002` applied with `--local` |
+| `npm run cf-typegen` | passes; `cloudflare-env.d.ts` matches `wrangler.jsonc` including `DEPLOYMENT_MODE` and the ImageKit variables |
+| Local migrations | `0000`–`0003` applied with `--local` |
 | Local seed | 5 categories, 34 dishes, 15 species references, 7 bundled photographs, 0 uploads |
 | Phase 3 migration | creates the version/token columns, `bundled_gallery_images`, captions |
+| Phase 5 migration | adds `media_provider` + `provider_asset_id` to `menu_items` and `gallery_images`, backfills existing rows as `r2` |
 | Remote scripts (dry run) | `db:seed:remote` and `db:provision:owner` print their SQL, execute nothing without `--apply`; the owner dry run is a redacted review, and its real SQL is written only to a temporary file outside the project that is deleted when the run ends |
 
 All seven gates ran on this tree, in the order of `docs/DEPLOYMENT_CHECKLIST.md` §2, immediately
-before the commit that carries Phase 4. One failure was found and fixed rather than skipped:
-`wrangler types` narrows `DEPLOYMENT_MODE` to the literals `wrangler.jsonc` declares, which made
-the `"local"` branch of `resolveDeploymentMode` a type error as soon as `cf-typegen` ran — the
-branch is real (the unit suite sets it), so the value is now read as a plain string with the same
-fail-closed fallback, rather than the branch being deleted to satisfy the compiler. `cf-typegen`
-now runs first in §2 for the same reason: `typecheck` and `build` read what it writes.
+before the commit that carries Phase 5. Three failures were found and fixed rather than skipped:
+
+- `wrangler types` narrows `DEPLOYMENT_MODE` to the literals `wrangler.jsonc` declares, which made
+  the `"local"` branch of `resolveDeploymentMode` a type error as soon as `cf-typegen` ran (Phase 4).
+  The branch is real, so the value is read as a plain string with the same fail-closed fallback
+  rather than the branch being deleted. This is why `cf-typegen` runs first in §2: `typecheck` and
+  `build` read what it writes.
+- The local fake ImageKit server parsed multipart bodies with `Buffer.endsWith`, which does not
+  exist on Buffers, so every e2e upload returned 500 and the suite reported a validation error
+  (Phase 5). The parser now trims the trailing CRLF with `Buffer.equals`.
+- `scripts/seed-local.ts` picked the first `.sqlite` under `.wrangler/state` by name, which with two
+  local databases (top-level and preview env) was the *preview* file — the seed printed success
+  while resetting a database the app never reads, and six price assertions failed against the real
+  one (Phase 5). It now runs a canary probe against each candidate and seeds the file the probe
+  actually touches.
 
 ## Open items, in the order they block launch
 
@@ -45,19 +55,31 @@ seeded by these scripts. Until someone runs §3 of `docs/DEPLOYMENT_CHECKLIST.md
 environment, this blocks launch exactly as the old open item did — the difference is that the
 remaining work is a documented command, not a missing feature.
 
-### 2. No password recovery
+### 2. No ImageKit account has been provisioned
+
+Phase 5 replaced the R2 bindings with an ImageKit-backed media store, but no real ImageKit
+account was created and no credentials were collected — deliberately. The unit suite injects
+fetch mocks, the end-to-end suite talks to a local fake server
+(`tests/e2e/fake-imagekit-server.mjs`), and CI sets only throwaway values, so every gate stays
+credential-free. The consequence is that uploads and image reads fail closed — `MediaConfigError`
+— until two values are taken from the ImageKit dashboard: the **URL endpoint**
+(`IMAGEKIT_URL_ENDPOINT`, a var) and the **private API key** (`IMAGEKIT_PRIVATE_KEY`, a secret).
+`docs/DEPLOYMENT_CHECKLIST.md` §1 and §4 list exactly where each goes. Collecting them is a
+launch prerequisite, not a code change.
+
+### 3. No password recovery
 
 No email provider is configured, so a forgotten password means editing D1. `docs/OWNER_GUIDE.md`
 tells the owner this plainly. Acceptable only if exactly one person holds the credentials and has a
 password manager; not acceptable the moment a second person does.
 
-### 3. Consent for identifiable people
+### 4. Consent for identifiable people
 
 The bundled gallery is confirmed by the owner as the restaurant's own photographs. That is
 provenance, not a release. If any photograph shows an identifiable person, a written release is a
 separate requirement and nothing here records one. Check the seven photographs before launch.
 
-### 4. No independent visual review
+### 5. No independent visual review
 
 The dashboard was written to be usable at 390 px, keyboard-operable and French throughout, and that
 was verified by reading it and by unit tests. Nobody has looked at it in a browser. The claims in
@@ -91,6 +113,10 @@ Each is written up where it belongs, and repeated here so it is not a surprise l
   photographs survive a re-seed; that is deliberate, and it also means a re-seed will not repair a
   wrong editorial decision. `db:seed:remote` goes further than the local seed: it contains no
   `UPDATE` and no `DELETE` at all, so nothing it did not insert can be changed by running it.
+- **Hiding a photograph does not recall a CDN URL.** `/api/media` authorizes every image the site
+  serves, so a hidden or deleted upload stops being served there, but an ImageKit CDN URL that was
+  already shared keeps working until the file itself is deleted. Private/signed delivery is the
+  documented follow-up. `docs/SECURITY.md`.
 
 ## What was deliberately not built
 

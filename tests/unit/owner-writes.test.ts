@@ -827,7 +827,7 @@ describe("owner gallery writes", () => {
     expect(second.sortOrder).toBe(2);
   });
 
-  it("deletes an upload and hands back the R2 key so the object can go too", async () => {
+  it("deletes an upload and hands back the stored ref so the asset can go too", async () => {
     const created = await createGalleryImageWithAudit(harness.db, {
       imageKey: "gallery/2026/upload.webp",
       altTextFr: "Le comptoir.",
@@ -841,7 +841,11 @@ describe("owner gallery writes", () => {
       audit: audit(created.id, { removedKey: created.imageKey }),
     });
 
-    expect(outcome).toEqual({ imageKey: "gallery/2026/upload.webp" });
+    expect(outcome).toEqual({
+      provider: "r2",
+      key: "gallery/2026/upload.webp",
+      assetId: "gallery/2026/upload.webp",
+    });
     expect(await listAdminGalleryImages(harness.db)).toHaveLength(0);
     // The audit row is the record that survives the photograph.
     expect(countAuditRows(harness.db)).toBe(2);

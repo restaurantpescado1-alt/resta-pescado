@@ -7,7 +7,7 @@ import type { z } from "zod";
 
 import { getAuth } from "@/auth";
 import { getDb } from "@/db";
-import { getMediaBucket } from "@/db/media";
+import { getMediaProvider } from "@/db/media";
 import { consumeRateLimit } from "@/db/repositories/admin";
 import { getMenuItem, getSiteSettings } from "@/db/repositories/menu";
 import {
@@ -37,7 +37,8 @@ import {
 import { ADMIN_RATE_LIMITS, NotOwnerError } from "@/lib/admin-access";
 import type { ActionResult } from "@/lib/action-result";
 import { requireOwnerOrThrow } from "@/lib/authz";
-import { validateImageUpload } from "@/lib/images";
+import { buildGalleryKey, validateImageUpload } from "@/lib/images";
+import type { MediaAssetRef, MediaProvider } from "@/lib/media-provider";
 import {
   changePasswordInputSchema,
   createCategoryInputSchema,
@@ -66,9 +67,9 @@ import {
  * property rather than a matter of style:
  *
  *   1. authorize  an anonymous or wrong-role caller stops here, before any input is read
- *   2. rate limit  before parsing, so a flood costs no database work and no R2 bandwidth
- *   3. validate    before any write, and before R2 is touched
- *   4. write       R2 first, then D1, then cleanup, in the order that cannot strand an object
+ *   2. rate limit  before parsing, so a flood costs no database work and no media-store traffic
+ *   3. validate    before any write, and before the media store is touched
+ *   4. write       the store first, then D1, then cleanup, in the order that cannot strand an object
  *
  * `guard` owns the first three. Repeating them by hand across twenty actions is how one of
  * them eventually gets left out of a single action, and the action that forgot would be the one
@@ -109,6 +110,21 @@ async function guard<Schema extends z.ZodType>(
 
 function failure(message: string, extra: Partial<ActionResult> = {}): ActionResult {
   return { ok: false, message, ...extra };
+}
+
+/**
+ * Best-effort delete for the flows that treat "the object is already gone" as
+ * success. A `not-performed` outcome is the legacy R2 shim reporting that no
+ * binding exists to act on: log it so the operator knows an orphan could not be
+ * cleaned up, but do not fail the request.
+ */
+async function deleteMediaAsset(provider: MediaProvider, ref: MediaAssetRef): Promise<void> {
+  const result = await provider.delete(ref);
+  if (result.status === "not-performed") {
+    console.error(
+      `Media delete not performed: key=${ref.key} provider=${ref.provider} reason=${result.reason}`,
+    );
+  }
 }
 
 /**
@@ -773,9 +789,9 @@ export async function saveGalleryImageAction(rawInput: unknown): Promise<ActionR
 /**
  * Uploads a gallery photograph.
  *
- * R2 first, then the database. If the database write fails, the object it just accepted is
- * deleted, so a failed upload leaves nothing behind: an object no row points at is invisible to
- * the site *and* to the owner, which is the worst kind of leftover.
+ * The media store first, then the database. If the database write fails, the asset it just
+ * accepted is deleted, so a failed upload leaves nothing behind: an asset no row points at is
+ * invisible to the site *and* to the owner, which is the worst kind of leftover.
  */
 export async function uploadGalleryImageAction(formData: FormData): Promise<ActionResult> {
   const guardResult = await guard("uploadGalleryImage", uploadGalleryImageInputSchema, {
@@ -799,24 +815,28 @@ export async function uploadGalleryImageAction(formData: FormData): Promise<Acti
   }
 
   const db = getDb();
-  const media = getMediaBucket();
-  const newKey = galleryR2Key(validated.extension);
+  const provider = getMediaProvider();
+  const newKey = buildGalleryKey(validated.extension);
 
+  let uploaded: MediaAssetRef;
   try {
-    await media.put(newKey, validated.bytes, {
-      httpMetadata: {
-        contentType: validated.mimeType,
-        cacheControl: "public, max-age=31536000, immutable",
-      },
+    uploaded = await provider.upload({
+      key: newKey,
+      bytes: new Uint8Array(validated.bytes),
+      contentType: validated.mimeType,
+      width: validated.dimensions.width,
+      height: validated.dimensions.height,
     });
   } catch (error) {
-    console.error("Gallery upload to R2 failed", error);
+    console.error("Gallery upload to the media store failed", error);
     return failure("La photographie n'a pas pu être envoyée. Réessayez.");
   }
 
   try {
     await createGalleryImageWithAudit(db, {
-      imageKey: newKey,
+      imageKey: uploaded.key,
+      provider: uploaded.provider,
+      providerAssetId: uploaded.assetId,
       altTextFr,
       captionFr,
       audit: {
@@ -824,6 +844,8 @@ export async function uploadGalleryImageAction(formData: FormData): Promise<Acti
         action: "gallery.uploaded_created",
         entityType: "gallery_image",
         metadata: {
+          imageKey: uploaded.key,
+          provider: uploaded.provider,
           altTextFr,
           captionFr,
           bytes: declaredBytes.byteLength,
@@ -835,12 +857,12 @@ export async function uploadGalleryImageAction(formData: FormData): Promise<Acti
     });
   } catch (error) {
     /*
-     * The row was not written, so nothing points at the object. Remove it rather than leaving an
-     * orphan in the bucket: it would cost storage and there would be no screen anywhere in the
+     * The row was not written, so nothing points at the asset. Remove it rather than leaving an
+     * orphan in the store: it would cost storage and there would be no screen anywhere in the
      * dashboard that could show it to the owner.
      */
-    await media.delete(newKey).catch((cleanupError: unknown) => {
-      console.error(`Gallery upload orphaned in R2: key=${newKey}`, cleanupError);
+    await deleteMediaAsset(provider, uploaded).catch((cleanupError: unknown) => {
+      console.error(`Gallery upload orphaned: key=${uploaded.key} provider=${uploaded.provider}`, cleanupError);
     });
     console.error("Gallery upload could not be recorded", error);
     return failure("La photographie a été envoyée mais n'a pas pu être enregistrée.");
@@ -853,10 +875,10 @@ export async function uploadGalleryImageAction(formData: FormData): Promise<Acti
 /**
  * Removes an uploaded photograph for good.
  *
- * The database stops referring to it first, then the object is deleted. The reverse order would
- * leave a published page pointing at an object that no longer exists, which is the one outcome
+ * The database stops referring to it first, then the asset is deleted. The reverse order would
+ * leave a published page pointing at an asset that no longer exists, which is the one outcome
  * worse than a leftover file. If the delete fails afterwards the row is already gone, so the
- * object is logged as an orphan to remove by hand rather than restored: putting the row back
+ * asset is logged as an orphan to remove by hand rather than restored: putting the row back
  * would resurrect a photograph the owner deliberately removed.
  */
 export async function deleteGalleryImageAction(rawInput: unknown): Promise<ActionResult> {
@@ -867,11 +889,11 @@ export async function deleteGalleryImageAction(rawInput: unknown): Promise<Actio
   const { galleryImageId, expectedVersion } = guardResult.data;
 
   const db = getDb();
-  const media = getMediaBucket();
+  const provider = getMediaProvider();
 
-  let outcome: { imageKey: string } | null;
+  let removed: MediaAssetRef | null;
   try {
-    outcome = await deleteGalleryImageWithAudit(db, {
+    removed = await deleteGalleryImageWithAudit(db, {
       galleryImageId,
       expectedVersion,
       audit: {
@@ -893,14 +915,14 @@ export async function deleteGalleryImageAction(rawInput: unknown): Promise<Actio
     throw error;
   }
 
-  if (!outcome) {
+  if (!removed) {
     return failure("Photographie introuvable.");
   }
 
-  await media.delete(outcome.imageKey).catch((error: unknown) => {
+  await deleteMediaAsset(provider, removed).catch((error: unknown) => {
     console.error(
-      `Gallery image orphaned in R2: key=${outcome?.imageKey}. No database row references it any more; ` +
-        "delete it by hand.",
+      `Gallery image orphaned: key=${removed.key} provider=${removed.provider}. No database row ` +
+        "references it any more; delete it by hand.",
       error,
     );
   });
@@ -996,14 +1018,3 @@ export async function signOutAction(): Promise<void> {
 }
 
 /* ------------------------------------------------------------------ helpers */
-
-/**
- * Where an uploaded gallery object goes.
- *
- * A `gallery/` prefix rather than `menu/`, so the two never share a namespace and so a later
- * sweep can treat them separately. The key is minted per upload, which is what makes the
- * `immutable` cache header above safe: nothing is ever written to the same key twice.
- */
-function galleryR2Key(extension: "jpg" | "png" | "webp"): string {
-  return `gallery/${new Date().getUTCFullYear()}/${crypto.randomUUID()}.${extension}`;
-}

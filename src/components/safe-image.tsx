@@ -5,8 +5,8 @@ import { useState } from "react";
 /**
  * An image that degrades to text when it cannot be displayed.
  *
- * Every image on the public site can fail for reasons the site does not control: an R2
- * object deleted by hand, a bad `Content-Type`, a truncated file that slipped past upload
+ * Every image on the public site can fail for reasons the site does not control: a stored
+ * asset deleted by hand, a bad `Content-Type`, a truncated file that slipped past upload
  * validation, or a bundled asset that never made it into the build. When that happens the
  * browser paints its own broken-image glyph, which on a restaurant menu looks like the
  * restaurant is broken.

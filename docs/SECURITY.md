@@ -6,7 +6,9 @@
 - Parameterized Drizzle queries; positive integer DA prices; foreign keys enabled.
 - Rate-limit login, reset, upload, and destructive actions.
 - Allow JPEG, PNG, and WebP only; verify MIME, signature, dimensions, size, and file completeness.
-- Random R2 keys; never expose write credentials to browsers.
+- Random object keys; never expose write credentials to browsers. The ImageKit private key is
+  a Worker secret: upload, delete and read all run server-side through `src/lib/media-provider.ts`,
+  and the browser only ever holds a `/api/media/...` URL.
 - Serve `/api/media/...` with per-request authorization: menu keys from an allow list, gallery
   keys only through a visible `bundled_gallery_images` row or an owner session, everything else 404.
 - Read the client IP from `CF-Connecting-IP` only; `X-Forwarded-For` and `X-Real-IP` are trusted
@@ -15,9 +17,9 @@
 - Image removal: clear the reference and write the audit row atomically first, then delete
   the object. A failed commit keeps both the reference and the object. A failed delete after
   a successful commit leaves an unreferenced object, which is logged rather than repaired:
-  restoring the old reference would point a dish the owner just cleared at an object whose
-  deletion failed. Bundled fish-guide images are never deleted from R2, because they are not
-  in it.
+  restoration of the old reference would point a dish the owner just cleared at an object whose
+  deletion failed. Bundled fish-guide images are never deleted from the media store, because
+  they are not in it.
 - Audit create, update, delete, reorder, settings, and sensitive login actions.
 - Keep secrets out of Git, Notion, screenshots, and chat.
 - Provision the owner password interactively only: `db:provision:owner` reads it from a masked
@@ -25,7 +27,9 @@
   `hashPassword` output to a temporary directory under the OS temporary folder with restrictive
   permissions, and removes it when the run ends - including on failure. Nothing that prints the
   real SQL (the apply runs a file, and the dry run shows a redacted copy).
-- Use D1 Time Travel plus scheduled JSON exports to R2; test restore before launch.
+- Use D1 Time Travel plus a scheduled JSON export stored outside D1; test restore before
+  launch. The export target used to be the removed R2 bucket, so no location is configured yet —
+  choosing one (any object store outside Cloudflare D1) is part of launch, not optional.
 
 ## Order of checks on an owner write
 
@@ -83,6 +87,11 @@ sessions open elsewhere.
 - **People in photographs.** The bundled gallery is confirmed by the owner as the restaurant's
   own photographs; that is provenance, not a release. If a photograph shows an identifiable person,
   a written release is a separate requirement and nothing in this codebase records one.
+- **Hiding a photograph does not recall a URL.** `/api/media` authorizes every request the site
+  makes, so a hidden or deleted image stops being served there, but ImageKit delivers from its
+  CDN: a CDN URL that was already shared or cached keeps working until the file is deleted from
+  ImageKit itself. Deletion removes the file; hiding does not. Private/signed delivery is the
+  follow-up that would make hiding absolute.
 
 ## Limits of upload validation, stated honestly
 

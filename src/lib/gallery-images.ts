@@ -9,7 +9,8 @@
  *
  * ## These are not the same thing as the `gallery_images` table
  *
- * `gallery_images` holds what the owner uploads through the dashboard, in R2. This module
+ * `gallery_images` holds what the owner uploads through the dashboard, in the media store.
+ * This module
  * holds what ships inside the repository. Both are shown on `/galerie`, bundled images
  * first, because their order is curated here while uploaded ones use `sort_order`. See
  * `docs/GALLERY.md` for how the bundled set gets initialised in production.

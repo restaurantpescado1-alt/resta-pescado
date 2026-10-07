@@ -10,7 +10,7 @@ has not.
 | Source | Where it lives | Who controls the order |
 | --- | --- | --- |
 | Bundled photographs | `public/images/gallery/webp/*.webp`, described by `src/lib/gallery-images.ts` | Curated in code |
-| Owner uploads | R2, rows in `gallery_images` | `sort_order`, in the dashboard |
+| Owner uploads | ImageKit, rows in `gallery_images` | `sort_order`, in the dashboard |
 
 Bundled images come first. The table is read on every request, so an uploaded photograph
 appears without a rebuild.
@@ -90,8 +90,8 @@ repository. The reference was removed rather than left pointing at a missing fil
 
 ## Initialising the bundled set in production, later
 
-The bundled photographs ship inside the repository, so production needs no R2 objects: the same
-files are served. It does need their `bundled_gallery_images` rows, because
+The bundled photographs ship inside the repository, so production needs no uploaded objects:
+the same files are served. It does need their `bundled_gallery_images` rows, because
 `/api/media/gallery/...` authorizes per request and fails closed — no visible row, no image.
 `npm run db:seed:remote` inserts them, one row per slug, `ON CONFLICT DO NOTHING`, so an owner's
 edits to alt text, captions, order and visibility survive a re-run exactly as this document's
@@ -119,11 +119,17 @@ deleted by a script.** The seed's reset path is gated behind
 
 ## Known limitations
 
-- **D1 and R2 cannot be atomic together.** Every image operation is ordered to avoid losing
-  a live image, and each ordering is documented where it is implemented
+- **D1 and the media store cannot be atomic together.** Every image operation is ordered to
+  avoid losing a live image, and each ordering is documented where it is implemented
   (`src/lib/image-replace.ts`, `src/lib/image-remove.ts`). If the process dies between the
   database commit and the object delete, the object survives as an orphan. The removal path
   logs the orphan key; there is no reconciliation job, and this does not claim otherwise.
+- **Hiding stops `/api/media`, not the CDN.** Uploaded files are served by ImageKit's CDN as
+  well as by our proxy: hiding or un-referencing an upload stops the site from serving it, but
+  a CDN URL that was already shared keeps working until the file itself is deleted from
+  ImageKit. Deleting removes the file; hiding only stops us. See `docs/SECURITY.md`.
+- **No image transformations are applied.** `/api/media` returns the stored bytes and ignores
+  query parameters, so no ImageKit `tr-` transform is in use and none may be assumed.
 - **A post-commit row count cannot roll a D1 batch back.** `runAtomicBatch` checks that an
   update matched the expected number of rows and throws otherwise. By the time that check
   runs the batch is already committed, so the throw reports the mismatch rather than
@@ -139,11 +145,11 @@ From Phase 3 the owner manages both sources in `/admin/galerie` without a code e
 - **Bundled photographs** can be hidden, reordered, and given an edited alt text or caption.
   Their source files are never deleted, and they keep living in `public/images/gallery/`.
   Hiding one is a database flag only.
-- **Uploaded photographs** live in R2 and can additionally be deleted, which removes the
+- **Uploaded photographs** live in ImageKit and can additionally be deleted, which removes the
   object after the database stops referencing it.
 
 The two are kept structurally separate rather than merged into one list. Bundled state lives in
 `bundled_gallery_images`, keyed by the manifest slug, and uploaded state lives in
-`gallery_images`, keyed by a UUID and carrying an R2 key. A bundled row has no object key at
-all, so there is no code path on which a `/images/gallery/webp/...` path can be mistaken for an
-R2 key and sent to `media.delete()`.
+`gallery_images`, keyed by a UUID and carrying a media-store key. A bundled row has no object
+key at all, so there is no code path on which a `/images/gallery/webp/...` path can be mistaken
+for an uploaded key and sent to `media.delete()`.

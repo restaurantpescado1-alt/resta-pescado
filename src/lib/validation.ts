@@ -38,10 +38,10 @@ export const updateFeaturedInputSchema = z.object({
 
 export type UpdateFeaturedInput = z.infer<typeof updateFeaturedInputSchema>;
 
-/** R2 object keys are `menu/{year}/{uuid}.{ext}` per docs/ARCHITECTURE.md. */
-export const R2_KEY_PATTERN = /^menu\/\d{4}\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(jpg|png|webp)$/;
+/** Image keys are `menu/{year}/{uuid}.{ext}` per docs/ARCHITECTURE.md. */
+export const IMAGE_KEY_PATTERN = /^menu\/\d{4}\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(jpg|png|webp)$/;
 
-export const imageKeySchema = z.string().regex(R2_KEY_PATTERN, "Clé d'image invalide.");
+export const imageKeySchema = z.string().regex(IMAGE_KEY_PATTERN, "Clé d'image invalide.");
 
 export const replaceImageInputSchema = z.object({
   menuItemId: z.string().min(1, "Identifiant de plat manquant."),

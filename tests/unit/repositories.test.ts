@@ -203,9 +203,13 @@ describe("menu repository", () => {
 
       const withImage = await updateMenuItemImageKey(db, itemId, "menu/2026/abc.png");
       expect(withImage?.imageKey).toBe("menu/2026/abc.png");
+      // The legacy helper keeps the R2 convention the migration backfilled.
+      expect(withImage?.mediaProvider).toBe("r2");
+      expect(withImage?.providerAssetId).toBe("menu/2026/abc.png");
 
       const cleared = await updateMenuItemImageKey(db, itemId, null);
       expect(cleared?.imageKey).toBeNull();
+      expect(cleared?.providerAssetId).toBeNull();
     } finally {
       native.close();
     }
@@ -324,7 +328,7 @@ describe("atomic menu writes", () => {
 
       await updateMenuItemImageKeyWithAudit(db, {
         menuItemId: "item-1",
-        imageKey: "menu/2026/new.png",
+        media: { provider: "imagekit", key: "menu/2026/new.png", assetId: "fileId-1" },
         audit: {
           actorId: "user-1",
           action: "menu_item.image_replaced",
@@ -336,7 +340,45 @@ describe("atomic menu writes", () => {
 
       const item = await getMenuItem(db, "item-1");
       expect(item?.imageKey).toBe("menu/2026/new.png");
+      expect(item?.mediaProvider).toBe("imagekit");
+      expect(item?.providerAssetId).toBe("fileId-1");
       expect(await findAuditLogs(db, "menu_item", "item-1")).toHaveLength(1);
+    } finally {
+      native.close();
+    }
+  });
+
+  it("clears the image key and the provider columns together", async () => {
+    const { db, native } = createDatabase();
+    try {
+      seedFixture(db);
+      await updateMenuItemImageKeyWithAudit(db, {
+        menuItemId: "item-1",
+        media: { provider: "imagekit", key: "menu/2026/new.png", assetId: "fileId-1" },
+        audit: {
+          actorId: "user-1",
+          action: "menu_item.image_replaced",
+          entityType: "menu_item",
+          entityId: "item-1",
+          metadata: {},
+        },
+      });
+
+      await updateMenuItemImageKeyWithAudit(db, {
+        menuItemId: "item-1",
+        media: null,
+        audit: {
+          actorId: "user-1",
+          action: "menu_item.image_removed",
+          entityType: "menu_item",
+          entityId: "item-1",
+          metadata: {},
+        },
+      });
+
+      const item = await getMenuItem(db, "item-1");
+      expect(item?.imageKey).toBeNull();
+      expect(item?.providerAssetId).toBeNull();
     } finally {
       native.close();
     }
@@ -351,7 +393,7 @@ describe("atomic menu writes", () => {
       await expect(
         updateMenuItemImageKeyWithAudit(db, {
           menuItemId: "item-1",
-          imageKey: "menu/2026/replacement.png",
+          media: { provider: "imagekit", key: "menu/2026/replacement.png", assetId: "fileId-2" },
           audit: {
             actorId: "user-ghost",
             action: "menu_item.image_replaced",
@@ -362,11 +404,12 @@ describe("atomic menu writes", () => {
         }),
       ).rejects.toThrow();
 
-      // This is the assertion that justifies the R2 compensation in the action:
-      // the database still points at the original object, so that object must not
+      // This is the assertion that justifies the media compensation in the action:
+      // the database still points at the original asset, so that asset must not
       // have been deleted.
       const item = await getMenuItem(db, "item-1");
       expect(item?.imageKey).toBe("menu/2026/original.png");
+      expect(item?.providerAssetId).toBe("menu/2026/original.png");
       expect(await findAuditLogs(db, "menu_item", "item-1")).toHaveLength(0);
     } finally {
       native.close();

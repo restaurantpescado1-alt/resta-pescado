@@ -39,9 +39,9 @@ import { listBundledGalleryImages } from "../src/lib/gallery-images";
  *   the same file.
  * - **No migrations.** The schema comes from
  *   `wrangler d1 migrations apply <db> --remote`; this script assumes it.
- * - **No R2 objects.** Bundled photographs ship as repository assets, and dish
- *   photographs are only ever owner uploads, so there is nothing to put in the
- *   bucket.
+ * - **No uploaded objects.** Bundled photographs ship as repository assets, and dish
+ *   photographs are only ever owner uploads, so there is nothing to seed into the
+ *   media store.
  *
  * ## Usage
  *

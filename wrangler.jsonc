@@ -25,21 +25,22 @@
       "migrations_dir": "drizzle"
     }
   ],
-  "r2_buckets": [
-    {
-      "binding": "MEDIA",
-      "bucket_name": "resta-pescado-media"
-    }
-  ],
   "vars": {
     "NEXTJS_ENV": "production",
-    "DEPLOYMENT_MODE": "production"
+    "DEPLOYMENT_MODE": "production",
+    "MEDIA_PROVIDER": "imagekit",
+    // The ImageKit URL endpoint ("URL endpoint" in the Media Library settings,
+    // `https://ik.imagekit.io/your-endpoint`) is public — it prefixes every
+    // delivered URL. The placeholder fails closed: only the Worker reads it, and
+    // a placeholder endpoint would 404 on every read. The private key is a
+    // secret, never a var: `wrangler secret put IMAGEKIT_PRIVATE_KEY`.
+    "IMAGEKIT_URL_ENDPOINT": "https://ik.imagekit.io/PLACEHOLDER_ENDPOINT"
   },
   "observability": {
     "enabled": true
   },
-  // Preview environment: a separate Worker with its own D1 database and R2
-  // bucket, so preview work never reads or writes production data.
+  // Preview environment: a separate Worker with its own D1 database, so preview
+  // work never reads or writes production data.
   //
   // Fill in before any remote preview deploy (placeholders are deliberately
   // unusable so an unfilled config fails closed):
@@ -48,9 +49,17 @@
   //     The placeholder must stay distinct from the top-level one: local wrangler
   //     storage is keyed by database_id, so reusing it would point preview at the
   //     production local database.
-  //   - bucket: run `wrangler r2 bucket create resta-pescado-preview-media`
-  //     (R2 bucket names are scoped to the Cloudflare account, not global).
   //   - workers.dev: requires an account workers.dev subdomain to be configured.
+  //
+  // The R2 bucket bindings that this config held until Phase 5 are gone. Stored
+  // media is delivered by the configured provider (IMAGEKIT_URL_ENDPOINT + the
+  // IMAGEKIT_PRIVATE_KEY secret) through the /api/media proxy route; no R2
+  // bucket needs to be created or bound. The legacy provider (MEDIA_PROVIDER=r2,
+  // no bindings needed) exists only to read/delete the objects Phase 1-4
+  // uploaded, and to fail closed rather than strand them.
+  //
+  // An env block is self-contained: it does NOT inherit the top-level vars, so
+  // the provider vars have to be repeated here.
   //
   // Cloudflare Access (to restrict who can reach the preview hostname) is
   // configured in the dashboard or via the Cloudflare API, not from
@@ -74,15 +83,11 @@
           "migrations_dir": "drizzle"
         }
       ],
-      "r2_buckets": [
-        {
-          "binding": "MEDIA",
-          "bucket_name": "resta-pescado-preview-media"
-        }
-      ],
       "vars": {
         "NEXTJS_ENV": "production",
-        "DEPLOYMENT_MODE": "preview"
+        "DEPLOYMENT_MODE": "preview",
+        "MEDIA_PROVIDER": "imagekit",
+        "IMAGEKIT_URL_ENDPOINT": "https://ik.imagekit.io/PLACEHOLDER_ENDPOINT"
       }
     }
   }

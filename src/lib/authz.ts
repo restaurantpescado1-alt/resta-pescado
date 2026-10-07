@@ -16,7 +16,7 @@ export { ADMIN_RATE_LIMITS, NotOwnerError } from "./admin-access";
  * Reads the Better Auth session, loads `profiles` for that user, and requires
  * `role === 'owner'`. Every admin page and every server action calls this before
  * touching any other input, so an anonymous or wrongly-roled caller never
- * reaches validation, D1, or R2.
+ * reaches validation, D1, or the media store.
  */
 async function loadOwnerProfile(): Promise<ProfileRow | null> {
   return getOwnerProfileFrom(await headers());

@@ -5,7 +5,7 @@ Production website, native digital menu, and secure single-owner dashboard for R
 ## Approved stack
 
 - Next.js + TypeScript + Tailwind CSS
-- Cloudflare Workers, D1, and R2
+- Cloudflare Workers + D1, media stored and delivered by ImageKit
 - Better Auth
 - Drizzle ORM
 - Zod
@@ -35,9 +35,10 @@ npm run dev
 `.dev.vars` is gitignored and never committed. `BETTER_AUTH_SECRET` needs at least 32
 random characters, and `OWNER_PASSWORD` at least 12, which Better Auth enforces.
 
-The seed creates the single owner, one visible category, one visible dish, and a flat
-placeholder image in local R2. It is idempotent and safe to re-run: it resets the seeded
-dish's price and image so the end-to-end suite starts from a known state.
+The seed creates the single owner, one visible category, and one visible dish with no
+photograph (`image_key` stays null — `docs/CONTENT_POLICY.md` ranks "no image" above an
+invented one). It is idempotent and safe to re-run: it resets the seeded
+dish's price so the end-to-end suite starts from a known state.
 
 ## Commands
 
@@ -50,10 +51,10 @@ dish's price and image so the end-to-end suite starts from a known state.
 | `npm run lint` | ESLint, flat config. |
 | `npm run typecheck` | `tsc --noEmit`. |
 | `npm test` | Vitest unit and repository suites. |
-| `npm run test:e2e` | Playwright, against `preview` with local D1 and R2. |
+| `npm run test:e2e` | Playwright, against `preview` with local D1 and a local fake ImageKit server. |
 | `npm run db:generate` | Regenerates Drizzle migrations from the schema. |
 | `npm run db:migrate:local` | Applies migrations to the local D1 database. |
-| `npm run db:seed:local` | Seeds the local owner, category, dish, and image. |
+| `npm run db:seed:local` | Seeds the local owner, category, and dish (no photograph). |
 | `npm run cf-typegen` | Regenerates `cloudflare-env.d.ts` from `wrangler.jsonc`. |
 | `npm run smoke:preview` | Read-only live-preview smoke test against a *deployed* Cloudflare preview. See "Preview verification" below. |
 
@@ -77,8 +78,8 @@ with `EPERM`. Kill it before rebuilding.
 
 ## Preview verification
 
-Once a Cloudflare preview is deployed (D1, R2, and the workers.dev hostname exist and
-the databases are seeded), check it without touching it:
+Once a Cloudflare preview is deployed (D1, the ImageKit variables, and the workers.dev
+hostname exist and the databases are seeded), check it without touching it:
 
 ```bash
 npm run smoke:preview -- --url https://resta-pescado-preview.<account>.workers.dev
@@ -95,12 +96,13 @@ The human counterpart — the owner's manual acceptance run and the exact steps 
 changes — lives in `docs/MANUAL_ACCEPTANCE_CHECKLIST.md`, and the short owner training
 guide in `docs/GUIDE_FORMATION_PROPRIETAIRE.md`. The smoke test, not `test:e2e`, is the
 verification used against a *deployed* preview: `test:e2e` builds and boots a local
-Worker and expects local D1/R2.
+Worker against local D1 and the local fake ImageKit server.
 
 ## Deployment
 
-`npm run deploy` builds and deploys through OpenNext. Phase 1 is not deployed: the D1 and
-R2 bindings and the `BETTER_AUTH_SECRET` have to exist in the target account first. The content
+`npm run deploy` builds and deploys through OpenNext. Phase 1 is not deployed: the D1
+binding, the `BETTER_AUTH_SECRET`, and the ImageKit credentials (`IMAGEKIT_URL_ENDPOINT`
+as a var, `IMAGEKIT_PRIVATE_KEY` as a secret) have to exist in the target account first. The content
 and the owner account are provisioned from this repository with `npm run db:seed:remote` and
 `npm run db:provision:owner` - both dry-run by default and explicit about the environment. The
 owner script reads its password from a masked prompt, never from an environment variable, and

@@ -15,8 +15,9 @@ const nextConfig: NextConfig = {
   typedRoutes: false,
   serverExternalPackages: [],
   images: {
-    // The private R2 bucket is served through /api/media, not through the
-    // Next.js image optimizer, so images are used as-is.
+    // Stored photographs are served through /api/media (which proxies the
+    // configured media provider), not through the Next.js image optimizer,
+    // so images are used as-is.
     unoptimized: true,
   },
   experimental: {

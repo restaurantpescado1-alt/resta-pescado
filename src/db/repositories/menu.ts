@@ -1,6 +1,7 @@
 import { and, asc, eq, sql } from "drizzle-orm";
 
 import type { Database } from "..";
+import type { MediaAssetRef } from "../../lib/media-provider";
 import { expectExactlyOne, runAtomicBatch } from "../atomic";
 import {
   auditLogs,
@@ -121,7 +122,14 @@ export async function updateMenuItemPrice(
   return rows[0] ?? null;
 }
 
-/** Points a dish at a new R2 object. Prefer `updateMenuItemImageKeyWithAudit`. */
+/**
+ * Points a dish at an image by its delivery key. Prefer `updateMenuItemImageKeyWithAudit`.
+ *
+ * Legacy helper that predates the provider columns. It treats the key purely as an R2
+ * object key — the only store that existed when this was written — and mirrors the
+ * migration backfill (`provider_asset_id = image_key`). It is kept for the callers that
+ * genuinely need no audit trail.
+ */
 export async function updateMenuItemImageKey(
   db: Database,
   menuItemId: string,
@@ -130,7 +138,12 @@ export async function updateMenuItemImageKey(
 ): Promise<MenuItemRow | null> {
   const rows = await db
     .update(menuItems)
-    .set({ imageKey, updatedAt: toTimestamp(now) })
+    .set({
+      imageKey,
+      mediaProvider: "r2",
+      providerAssetId: imageKey ?? null,
+      updatedAt: toTimestamp(now),
+    })
     .where(eq(menuItems.id, menuItemId))
     .returning();
 
@@ -198,18 +211,20 @@ export async function updateMenuItemPriceWithAudit(
 }
 
 /**
- * Points a dish at a new R2 object and records the audit entry in one atomic batch.
+ * Points a dish at a stored media asset and records the audit entry in one atomic batch.
  *
  * Same reasoning as `updateMenuItemPriceWithAudit`, and the reason the caller can
- * treat a rejection as "R2 holds a new object and D1 still points at the old one":
+ * treat a rejection as "the store holds a new asset and D1 still points at the old one":
  * the batch is all-or-nothing, so no audit row is written either.
  *
- * The caller uploads to R2 first, calls this, and only deletes the previous object
- * once it resolves. If it rejects, the caller deletes the object it just uploaded.
+ * Passing `media: null` clears `image_key` and the provider columns together, which is
+ * what image removal commits. If the caller uploads to the store first, calls this, and
+ * only deletes the previous asset once it resolves; on rejection the caller deletes the
+ * asset it just uploaded.
  */
 export async function updateMenuItemImageKeyWithAudit(
   db: Database,
-  input: { menuItemId: string; imageKey: string | null; audit: AuditEntry },
+  input: { menuItemId: string; media: MediaAssetRef | null; audit: AuditEntry },
   now: Date = new Date(),
 ): Promise<void> {
   await runAtomicBatch(
@@ -217,7 +232,12 @@ export async function updateMenuItemImageKeyWithAudit(
     [
       db
         .update(menuItems)
-        .set({ imageKey: input.imageKey, updatedAt: toTimestamp(now) })
+        .set({
+          imageKey: input.media?.key ?? null,
+          mediaProvider: input.media?.provider ?? "r2",
+          providerAssetId: input.media?.assetId ?? null,
+          updatedAt: toTimestamp(now),
+        })
         .where(eq(menuItems.id, input.menuItemId)),
       buildAuditInsert(db, input.audit, now),
     ],

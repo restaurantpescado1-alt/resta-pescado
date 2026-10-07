@@ -5,14 +5,15 @@ import { readEnvFile } from "./scripts/env";
 
 /**
  * The end-to-end suite runs against the real Worker in workerd, with local D1 and
- * local R2. That is deliberate: it is the only place where the D1 driver, the
- * R2 binding, Better Auth's session cookies, and the server actions are all
- * exercised together, which is exactly the Phase 1 vertical slice.
+ * the local fake ImageKit server. That is deliberate: it is the only place where the
+ * D1 driver, the media provider, Better Auth's session cookies, and the server
+ * actions are all exercised together, which is exactly the Phase 1 vertical slice.
  *
  * The owner password is read from `.dev.vars` here rather than being passed on
  * every command line, so a plain `npm run test:e2e` works. Nothing is written to
  * disk: `readEnvFile` only populates this process, and values already in the
- * environment win.
+ * environment win. The same file points the Worker at the fake ImageKit server
+ * started below, so no real ImageKit account is ever needed.
  */
 readEnvFile();
 
@@ -62,15 +63,29 @@ export default defineConfig({
     },
   ],
 
-  webServer: {
-    // `opennextjs-cloudflare preview` runs the built Worker in workerd with local
-    // binding simulations, so this is the same runtime as production. The seed is
-    // applied first because the suite needs a known owner, dish, and image.
-    command: "npm run db:seed:local && npm run preview",
-    url: baseURL,
-    reuseExistingServer: !process.env.CI,
-    timeout: 300_000,
-    stdout: "pipe",
-    stderr: "pipe",
-  },
+  webServer: [
+    {
+      // The fake ImageKit API/CDN. The Worker's .dev.vars points MEDIA_PROVIDER,
+      // IMAGEKIT_URL_ENDPOINT, IMAGEKIT_UPLOAD_BASE and IMAGEKIT_API_BASE at it, so
+      // every upload, read and delete in this suite goes through the code paths that
+      // a real ImageKit account would exercise — without a real account.
+      command: "node tests/e2e/fake-imagekit-server.mjs",
+      url: "http://127.0.0.1:8788/health",
+      reuseExistingServer: !process.env.CI,
+      timeout: 60_000,
+      stdout: "pipe",
+      stderr: "pipe",
+    },
+    {
+      // `opennextjs-cloudflare preview` runs the built Worker in workerd with local
+      // binding simulations, so this is the same runtime as production. The seed is
+      // applied first because the suite needs a known owner, dish, and image.
+      command: "npm run db:seed:local && npm run preview",
+      url: baseURL,
+      reuseExistingServer: !process.env.CI,
+      timeout: 300_000,
+      stdout: "pipe",
+      stderr: "pipe",
+    },
+  ],
 });

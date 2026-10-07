@@ -3,8 +3,8 @@
 ## Runtime
 
 ```text
-Public visitor -> Next.js on Cloudflare Workers -> read-only D1 + R2
-Owner -> Better Auth -> protected server actions -> Zod -> D1 + R2 + audit log
+Public visitor -> Next.js on Cloudflare Workers -> read-only D1, /api/media proxying ImageKit
+Owner -> Better Auth -> protected server actions -> Zod -> D1 + ImageKit upload/delete + audit log
 ```
 
 ## Data model
@@ -17,7 +17,7 @@ Owner -> Better Auth -> protected server actions -> Zod -> D1 + R2 + audit log
 - gallery_images: id, image_key, alt_text_fr, caption_fr, sort_order, is_visible, version, edit_token, timestamps
 - bundled_gallery_images: slug-keyed mirror of the photographs committed to the repository,
   with caption_fr, sort_order, is_visible, version, edit_token. No `image_key`: these photographs
-  are files in `public/`, not objects in R2.
+  are files in `public/`, not objects in a media store.
 - audit_logs: actor, action, entity type/id, metadata, created_at
 
 ## Concurrency: one guard, applied the same way everywhere
@@ -60,9 +60,9 @@ remaining honest statement is that this one write is not atomic against a malfor
 
 `docs/GALLERY.md` covers the editorial rules. The architectural consequence is worth repeating:
 a bundled photograph may be described, captioned, hidden and reordered, and none of those writes
-touches R2. Only `gallery_images` rows hold an `image_key`, and only those may be deleted from the
-bucket. Anything that treats the two tables alike will eventually `media.delete()` a key that was
-never in R2.
+touches the media store. Only `gallery_images` rows hold an `image_key`, and only those may be
+deleted from the provider. Anything that treats the two tables alike will eventually
+`media.delete()` a key that was never uploaded.
 
 `bundled_gallery_images` is populated from `docs/gallery-manifest.json`, which is read at build
 time, so the rows are created lazily rather than by the migration:
@@ -89,15 +89,32 @@ recorded in `src/auth.ts` next to the plugin list.
 
 ## Storage
 
-Use a private R2 bucket. Upload through authenticated server endpoints only. Store randomized object keys in D1.
+Uploads go to ImageKit and the Worker holds the credentials. `src/lib/media-provider.ts` is
+the only code that talks to it: `MEDIA_PROVIDER` selects the store (`imagekit`, or `r2` for the
+legacy read/delete shim), `IMAGEKIT_PRIVATE_KEY` is a Worker secret, and the public
+`IMAGEKIT_URL_ENDPOINT` fails closed for as long as it still carries the placeholder value.
+Browsers never see the private key and never call ImageKit directly — every photograph is
+served by `/api/media/...`, which authorizes the request and proxies the provider. Upload
+through authenticated server endpoints only. Store randomized object keys in D1.
 
 ```text
 menu/{year}/{uuid}.webp
 gallery/{year}/{uuid}.webp
 hero/{year}/{uuid}.webp
 video/{year}/{uuid}.webm
-backups/database/{date}.json
 ```
+
+`image_key` is that delivery path whichever provider holds the bytes; `media_provider` and
+`provider_asset_id` record where they live and which provider asset they are. Two honest
+limits of this phase:
+
+- **Hiding is proxy-level.** A hidden gallery photograph stops being served through
+  `/api/media`, but an ImageKit CDN URL somebody already has stays fetchable: the files are
+  not behind a private/signing gate. Signed or private delivery is the follow-up that closes
+  this, and until then "hidden" means "not served by us", not "unreachable".
+- **No transformations yet.** `/api/media` serves the stored bytes and ignores query
+  parameters. ImageKit URL transformations are future work, so nothing may depend on a
+  transform parameter being applied.
 
 Use the stable OpenNext Cloudflare adapter for production. Do not adopt beta runtime tooling without a compatibility test.
 

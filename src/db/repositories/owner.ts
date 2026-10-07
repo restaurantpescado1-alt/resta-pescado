@@ -1,6 +1,7 @@
 import { and, asc, eq, inArray, sql, type SQL } from "drizzle-orm";
 
 import type { Database } from "..";
+import type { MediaAssetRef, MediaProviderKind } from "../../lib/media-provider";
 import { AtomicBatchMismatchError, expectExactlyOne, runAtomicBatch } from "../atomic";
 import {
   auditLogs,
@@ -522,6 +523,8 @@ export async function createMenuItemWithAudit(
      * just because it was added.
      */
     imageKey: null,
+    mediaProvider: "r2",
+    providerAssetId: null,
     fishReferenceSlug: input.fishReferenceSlug,
     isFeatured: false,
     isVisible: true,
@@ -925,8 +928,8 @@ export interface BundledGalleryPatch {
  * Edits the owner-controlled state of one bundled photograph.
  *
  * Only the three fields the owner is allowed to change. There is no path here to change the
- * file itself, the slug, or anything in R2: these photographs ship with the repository, and
- * a bundled row carries no object key for a deletion to act on.
+ * file itself, the slug, or anything in the media store: these photographs ship with the
+ * repository, and a bundled row carries no object key for a deletion to act on.
  */
 export async function updateBundledGalleryImageWithAudit(
   db: Database,
@@ -1120,14 +1123,20 @@ export async function reorderGalleryImagesWithAudit(
 /**
  * Records a newly uploaded photograph and its audit row in one batch.
  *
- * Called only after R2 has accepted the object, so a rejection here leaves the database
- * pointing at nothing it does not have. The reverse ordering problem is the caller's: it
- * deletes the object it just uploaded if this rejects.
+ * Called only after the media store accepted the object, so a rejection here leaves the
+ * database pointing at nothing it does not have. The reverse ordering problem is the
+ * caller's: it deletes the object it just uploaded if this rejects.
+ *
+ * `provider` and `providerAssetId` describe where the object lives. They default to the
+ * R2 convention (`provider = "r2"`, `assetId = imageKey`), which is what the migration
+ * backfilled, so legacy call sites keep working unchanged.
  */
 export async function createGalleryImageWithAudit(
   db: Database,
   input: {
     imageKey: string;
+    provider?: MediaProviderKind;
+    providerAssetId?: string | null;
     altTextFr: string;
     captionFr: string | null;
     audit: CreateAuditEntry;
@@ -1136,9 +1145,14 @@ export async function createGalleryImageWithAudit(
 ): Promise<GalleryImageRow> {
   const sortOrder = await nextGallerySortOrder(db);
 
+  const provider = input.provider ?? "r2";
+  const providerAssetId = input.providerAssetId ?? (provider === "r2" ? input.imageKey : null);
+
   const row: GalleryImageRow = {
     id: crypto.randomUUID(),
     imageKey: input.imageKey,
+    mediaProvider: provider,
+    providerAssetId,
     altTextFr: input.altTextFr,
     captionFr: input.captionFr,
     sortOrder,
@@ -1169,8 +1183,8 @@ async function nextGallerySortOrder(db: Database): Promise<number> {
 }
 
 /**
- * Deletes an uploaded photograph and its audit row in one batch, and returns the R2 key so
- * the caller can remove the object.
+ * Deletes an uploaded photograph and its audit row in one batch, and returns the media
+ * ref so the caller can delete the stored object.
  *
  * The row is deleted rather than hidden. `alt_text_fr` is `not null`, so a hidden row would
  * need alt text invented for an image nobody is going to see again, and keeping a row the
@@ -1184,7 +1198,7 @@ async function nextGallerySortOrder(db: Database): Promise<number> {
  * the insert back if the delete matched nothing.
  *
  * A bundled photograph cannot reach this function at all. It has no row in this table and no
- * R2 key, which is the whole reason the two sources are kept apart.
+ * stored object, which is the whole reason the two sources are kept apart.
  */
 export async function deleteGalleryImageWithAudit(
   db: Database,
@@ -1194,9 +1208,14 @@ export async function deleteGalleryImageWithAudit(
     audit: AuditEntry;
   },
   now: Date = new Date(),
-): Promise<{ imageKey: string } | null> {
+): Promise<MediaAssetRef | null> {
   const existing = await db
-    .select({ imageKey: galleryImages.imageKey, version: galleryImages.version })
+    .select({
+      imageKey: galleryImages.imageKey,
+      mediaProvider: galleryImages.mediaProvider,
+      providerAssetId: galleryImages.providerAssetId,
+      version: galleryImages.version,
+    })
     .from(galleryImages)
     .where(eq(galleryImages.id, input.galleryImageId))
     .limit(1);
@@ -1205,9 +1224,15 @@ export async function deleteGalleryImageWithAudit(
     return null;
   }
 
+  const ref: MediaAssetRef = {
+    provider: row.mediaProvider,
+    key: row.imageKey,
+    assetId: row.providerAssetId,
+  };
+
   /*
-   * Read out before the write, because afterwards there is no row to read from, and the key
-   * is the only handle the caller has on the R2 object.
+   * Read out before the write, because afterwards there is no row to read from, and the ref
+   * is the only handle the caller has on the stored object.
    */
   await runGuardedWrite(
     () =>
@@ -1230,7 +1255,7 @@ export async function deleteGalleryImageWithAudit(
     "photographie",
   );
 
-  return { imageKey: row.imageKey };
+  return ref;
 }
 
 /* ------------------------------------------------------------------ audit view */

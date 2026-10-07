@@ -11,8 +11,16 @@
 
 declare namespace Cloudflare {
   interface Env {
-    /** Private R2 bucket holding dish images. */
-    MEDIA: R2Bucket;
+    /** Media store selector: `imagekit` (current), `r2` (legacy read/delete shim). */
+    MEDIA_PROVIDER: string;
+    /** Public ImageKit URL endpoint; a PLACEHOLDER value fails closed. */
+    IMAGEKIT_URL_ENDPOINT: string;
+    /** ImageKit private key for the upload/delete API. A secret, never a var. */
+    IMAGEKIT_PRIVATE_KEY: string;
+    /** Optional override of the ImageKit upload host (automated tests only). */
+    IMAGEKIT_UPLOAD_BASE: string;
+    /** Optional override of the ImageKit API host (automated tests only). */
+    IMAGEKIT_API_BASE: string;
     /** SQLite database with the menu, profiles, audit log, and rate-limit state. */
     DB: D1Database;
     /** OpenNext static asset binding. */

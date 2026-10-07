@@ -8,7 +8,8 @@ import { SafeImage } from "@/components/safe-image";
  *
  * Two kinds of image, and the difference matters:
  *
- * - A **photograph** of the cooked dish, from R2, via `item.imageKey`. When one exists
+ * - A **photograph** of the cooked dish, served through the media route via
+ *   `item.imageKey`. When one exists
  *   it always wins, because it is the only thing that shows what you are served.
  * - An **AI-generated reference illustration** of the fish species, via
  *   `item.fishReferenceSlug`, from `public/`. It answers "which fish is this" and can

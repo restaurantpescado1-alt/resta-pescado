@@ -23,7 +23,8 @@ import {
  * owner was trying to tidy.
  *
  * The ordering itself is pinned in `tests/unit/image-remove.test.ts`, where the call log
- * is visible. These tests cover what only a real browser and a real R2 can show: that the
+ * is visible. These tests cover what only a real browser against the real Worker can show:
+ * that the
  * object is genuinely gone afterwards, that the dish falls back to the right state, that
  * the owner is asked first, and that the action is audited.
  *
@@ -129,7 +130,7 @@ test.describe("owner image removal", () => {
     await expect(image).toHaveAttribute("src", /\/images\/fish-guide\/merlan\.webp$/);
     await expect(publicRow.getByTestId("fish-reference-label")).toHaveText(FISH_LABEL);
 
-    // And the object really is gone from R2, not merely unreferenced.
+    // And the object really is gone from the media store, not merely unreferenced.
     const media = await page.request.get(uploaded!);
     expect(media.status()).toBe(404);
   });

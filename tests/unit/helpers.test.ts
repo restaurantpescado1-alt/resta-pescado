@@ -4,7 +4,7 @@ import { ADMIN_RATE_LIMITS, NotOwnerError } from "../../src/lib/admin-access";
 import { LOCAL_IP_HEADERS, PRODUCTION_IP_HEADER, resolveDeploymentMode, trustedIpHeaders } from "../../src/lib/auth-ip";
 import { DEFAULT_OWNER_REDIRECT, loginUrlFor, safeRedirectPath } from "../../src/lib/redirects";
 import { formatPrice, mediaUrl } from "../../src/lib/format";
-import { R2_KEY_PATTERN } from "../../src/lib/validation";
+import { IMAGE_KEY_PATTERN } from "../../src/lib/validation";
 
 describe("price formatting", () => {
   it("renders whole dinars with the DA suffix", () => {
@@ -30,7 +30,7 @@ describe("media URL", () => {
   it("produces a URL the media route accepts", () => {
     const key = buildKey();
     expect(mediaUrl(key)).toMatch(/^\/api\/media\/menu\/\d{4}\/[0-9a-f-]{36}\.(jpg|png|webp)$/);
-    expect(R2_KEY_PATTERN.test(key)).toBe(true);
+    expect(IMAGE_KEY_PATTERN.test(key)).toBe(true);
   });
 });
 

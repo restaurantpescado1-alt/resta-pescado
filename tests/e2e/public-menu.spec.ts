@@ -359,8 +359,8 @@ test("delivery is explained without an invented fee, zone, or minimum", async ({
  * The gallery.
  *
  * It is no longer empty. The owner supplied a curated set of photographs, and the page
- * renders them from a manifest in `src/lib/gallery-images.ts` alongside any future
- * uploads from R2. Two things are being protected:
+ * renders them from a manifest in `src/lib/gallery-images.ts` alongside any future owner
+ * uploads. Two things are being protected:
  *
  * - The curated photographs must actually load. A silent 404 would leave the page looking
  *   deliberate, which is worse than an obvious failure.

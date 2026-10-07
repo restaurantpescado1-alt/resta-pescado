@@ -20,10 +20,18 @@ Required environment variables — in `.dev.vars` locally, as Worker secrets in 
 | `BETTER_AUTH_TRUSTED_ORIGINS` | CSRF origin check | the public origin |
 | `OWNER_EMAIL`, `OWNER_NAME` | `npm run db:provision:owner` | the account's login email and the name shown in the dashboard; the email cannot be retyped later, only edited in D1 |
 | `OWNER_PASSWORD` | local seed and Playwright suite only | not an application secret; the remote provisioner never reads it - that password is typed twice at a masked prompt, and only its hash reaches anything |
+| `MEDIA_PROVIDER` | media store selection | `imagekit` in `wrangler.jsonc`; `r2` selects the legacy read/delete shim and must never be set for new work |
+| `IMAGEKIT_URL_ENDPOINT` | public ImageKit URL endpoint | a **var** (`https://ik.imagekit.io/<your-endpoint>`, from the Media Library's "URL endpoint"); the committed `PLACEHOLDER_ENDPOINT` value fails closed on purpose |
+| `IMAGEKIT_PRIVATE_KEY` | ImageKit upload/delete API | a **secret** (`wrangler secret put IMAGEKIT_PRIVATE_KEY`); never committed, never sent to the browser |
 | `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` | CI deploy only | least-privilege token, never in the repository |
 
+`IMAGEKIT_UPLOAD_BASE` and `IMAGEKIT_API_BASE` exist only so the automated tests can point the
+Worker at the local fake ImageKit server; production uses the ImageKit defaults and sets neither.
+
 If `BETTER_AUTH_SECRET` is absent the build succeeds and every login fails at runtime. Check it
-explicitly rather than discovering it on the first request.
+explicitly rather than discovering it on the first request. ImageKit configuration fails the
+same way at the other end: missing or placeholder values throw `MediaConfigError`, so uploads
+and image reads error out instead of quietly serving from the wrong origin.
 
 ## 2. Local verification, in order
 
@@ -40,8 +48,9 @@ npm run build:cf
 All seven must pass, in this order. `cf-typegen` is first because it rewrites the gitignored
 `cloudflare-env.d.ts` from `wrangler.jsonc`, and `typecheck` and `build` read it: after a change to
 the Wrangler config, running it last would mean typechecking yesterday's bindings. `test:e2e` builds
-the app and runs it under `wrangler` against local D1 and a local R2 emulator, so it is the gate
-that proves the Worker runtime works and not only Node.
+the app and runs it under `wrangler` against local D1 and a local fake ImageKit server
+(`tests/e2e/fake-imagekit-server.mjs`), so it is the gate that proves the Worker runtime works and
+not only Node — and it never needs a real ImageKit account.
 
 ## 3. Database
 
@@ -124,13 +133,19 @@ visibility are never overwritten, because those are choices made in the dashboar
       fails sign-in with an origin error that looks like a credentials problem.
 - [ ] The owner account exists, with the menu and the settings: `db:seed:remote` and
       `db:provision:owner` have been run with `--apply` for this environment, as in §3.
-- [ ] R2 bucket exists, is private, and the Worker binding points at it.
+- [ ] `IMAGEKIT_URL_ENDPOINT` is the real endpoint (not `PLACEHOLDER_ENDPOINT`) and
+      `IMAGEKIT_PRIVATE_KEY` is set as a Worker secret. Missing or placeholder configuration
+      fails closed: uploads and image reads error instead of serving from a wrong origin.
 - [ ] `advanced.ipAddress.ipAddressHeaders` is `CF-Connecting-IP` in production. Without it every
       caller shares one rate-limit bucket, and after a few logins all of them are refused.
-- [ ] The R2 custom domain or `/api/media` route serves images; a private bucket with no route
-      returns 404 for every photograph.
+- [ ] `/api/media` serves a real photograph and returns 404 for a key outside `menu/` and
+      `gallery/`. That proxy is the site's only image URL; ImageKit's CDN URL is never linked
+      from a page. Remember that hiding a gallery photograph stops the proxy but does not
+      recall a CDN URL that was already shared — deleting the upload does. See `docs/SECURITY.md`.
 - [ ] D1 Time Travel is understood to be the only backup of the last few days, and a scheduled
-      export to R2 (`backups/database/{date}.json`) exists. **Test a restore before launch.**
+      JSON export to storage **outside D1** exists. The former target (an R2 bucket) was removed
+      in Phase 5, so a location has to be chosen as part of this step. **Test a restore before
+      launch.**
 
 ## 5. Deploy
 
@@ -172,5 +187,5 @@ Then, against the real origin:
 1. `npx wrangler deployments list` — find the previous version, `npx wrangler rollback`.
 2. A code rollback does **not** undo a migration. D1 has no down-migrations here; restoring data
    means a Time Travel restore or an export, which is a decision, not a command.
-3. R2 objects deleted by an image removal are not recoverable from D1. This is why a removal writes
+3. Objects deleted by an image removal are not recoverable from D1. This is why a removal writes
    the database change first and the deletion second: a failed commit keeps both.

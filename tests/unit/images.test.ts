@@ -5,7 +5,8 @@ import {
   MAX_IMAGE_BYTES,
   MAX_IMAGE_DIMENSION,
   MIN_IMAGE_DIMENSION,
-  buildR2Key,
+  buildGalleryKey,
+  buildImageKey,
   detectMimeType,
   isCompleteImage,
   readImageDimensions,
@@ -276,23 +277,38 @@ describe("completeness", () => {
   });
 });
 
-describe("R2 key generation", () => {
+describe("image key generation", () => {
   it("uses the menu namespace, the year, a uuid, and the right extension", () => {
-    const key = buildR2Key("webp", new Date("2026-03-04T00:00:00Z"));
+    const key = buildImageKey("webp", new Date("2026-03-04T00:00:00Z"));
     expect(key).toMatch(
       /^menu\/2026\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.webp$/,
     );
   });
 
+  it("uses the gallery namespace, the year, a uuid, and the right extension", () => {
+    const key = buildGalleryKey("png", new Date("2026-03-04T00:00:00Z"));
+    expect(key).toMatch(
+      /^gallery\/2026\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.png$/,
+    );
+  });
+
+  it("keeps the two namespaces apart", () => {
+    expect(buildImageKey("jpg").startsWith("menu/")).toBe(true);
+    expect(buildGalleryKey("jpg").startsWith("gallery/")).toBe(true);
+  });
+
   it("is unique across calls", () => {
-    const keys = new Set(Array.from({ length: 200 }, () => buildR2Key("jpg")));
+    const keys = new Set(Array.from({ length: 200 }, () => buildImageKey("jpg")));
     expect(keys.size).toBe(200);
+    const galleryKeys = new Set(Array.from({ length: 200 }, () => buildGalleryKey("jpg")));
+    expect(galleryKeys.size).toBe(200);
   });
 
   it("maps each format to the documented extension", () => {
-    expect(buildR2Key("jpg").endsWith(".jpg")).toBe(true);
-    expect(buildR2Key("png").endsWith(".png")).toBe(true);
-    expect(buildR2Key("webp").endsWith(".webp")).toBe(true);
+    expect(buildImageKey("jpg").endsWith(".jpg")).toBe(true);
+    expect(buildImageKey("png").endsWith(".png")).toBe(true);
+    expect(buildImageKey("webp").endsWith(".webp")).toBe(true);
+    expect(buildGalleryKey("jpg").endsWith(".jpg")).toBe(true);
   });
 });
 

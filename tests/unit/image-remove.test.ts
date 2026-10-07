@@ -1,15 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { removeImageSafely, type ImageRemovalSteps } from "../../src/lib/image-remove";
+import type { MediaAssetRef } from "../../src/lib/media-provider";
 
 /**
  * The mirror of `image-replace.test.ts`.
  *
- * Removal has one failure mode that is worse than an error message: deleting the object
+ * Removal has one failure mode that is worse than an error message: deleting the asset
  * before the database stops pointing at it. The database is gone by the time the delete
  * runs, so a live dish cannot be left pointing at a 404. That ordering is invisible from
  * the outside, which is why it is pinned by asserting on the call log.
  */
+const old = { provider: "r2", key: "menu/2026/old.png", assetId: "menu/2026/old.png" } as const;
+
 function recorder() {
   const calls: string[] = [];
   const orphans: string[] = [];
@@ -18,15 +21,15 @@ function recorder() {
     orphans,
     steps(overrides: Partial<ImageRemovalSteps> = {}): ImageRemovalSteps {
       return {
-        previousKey: "menu/2026/old.png",
+        previous: old,
         commit: async () => {
           calls.push("commit");
         },
-        remove: async (key) => {
-          calls.push(`remove:${key}`);
+        remove: async (ref: MediaAssetRef) => {
+          calls.push(`remove:${ref.key}`);
         },
-        onOrphan: (key) => {
-          orphans.push(key);
+        onOrphan: (ref) => {
+          orphans.push(ref.key);
         },
         ...overrides,
       };
@@ -35,7 +38,7 @@ function recorder() {
 }
 
 describe("image removal ordering", () => {
-  it("commits the database change before deleting the object", async () => {
+  it("commits the database change before deleting the asset", async () => {
     const { calls, steps } = recorder();
 
     const outcome = await removeImageSafely(steps());
@@ -60,7 +63,7 @@ describe("image removal ordering", () => {
 
     /*
      * The load-bearing assertion. Deleting here would leave the dish pointing at an
-     * object that no longer exists, which is the broken state this ordering exists to
+     * asset that no longer exists, which is the broken state this ordering exists to
      * prevent.
      */
     expect(calls).toEqual(["commit"]);
@@ -71,9 +74,9 @@ describe("image removal ordering", () => {
 
     const outcome = await removeImageSafely(
       steps({
-        remove: async (key) => {
-          calls.push(`remove:${key}`);
-          throw new Error("R2 unavailable");
+        remove: async (ref: MediaAssetRef) => {
+          calls.push(`remove:${ref.key}`);
+          throw new Error("ImageKit unavailable");
         },
       }),
     );
@@ -95,7 +98,7 @@ describe("image removal ordering", () => {
       steps({
         onOrphan: undefined,
         remove: async () => {
-          throw new Error("R2 unavailable");
+          throw new Error("ImageKit unavailable");
         },
       }),
     );
@@ -108,13 +111,13 @@ describe("image removal ordering", () => {
     const { calls, orphans, steps } = recorder();
 
     const outcome = await removeImageSafely(
-      steps({ previousKey: null, onOrphan: vi.fn() }),
+      steps({ previous: null, onOrphan: vi.fn() }),
     );
 
     /*
      * No commit means no audit row for an action that changed nothing, and no delete
-     * means a fish illustration, which is bundled in `public/` and never in R2, cannot
-     * be targeted.
+     * means a fish illustration, which is bundled in `public/` and never in the media
+     * store, cannot be targeted.
      */
     expect(outcome).toBe("nothing-to-remove");
     expect(calls).toEqual([]);

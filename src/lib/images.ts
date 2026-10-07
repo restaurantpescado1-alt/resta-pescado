@@ -1,6 +1,6 @@
 /**
  * Image validation for dish uploads. Every function here is pure so it can be
- * unit tested without R2, a Worker, or a network.
+ * unit tested without a media store, a Worker, or a network.
  *
  * Order matters and is deliberate: cheap checks first, container parsing last, so
  * an oversized or wrongly-typed upload never reaches the more expensive work.
@@ -217,9 +217,9 @@ export function readImageDimensions(bytes: Uint8Array, mimeType: AllowedMimeType
  * passes all of it.
  *
  * That matters more than it sounds. There is no control for removing a dish photo, so a
- * truncated upload cannot be undone through the dashboard: it would sit in R2, D1 would
- * point at it, and every visitor would see a broken image on the live menu until
- * someone edited the database by hand.
+ * truncated upload cannot be undone through the dashboard: it would sit in the media
+ * store, D1 would point at it, and every visitor would see a broken image on the live
+ * menu until someone edited the database by hand.
  *
  * So each format is asked for its terminator, which is pure byte inspection and needs no
  * image decoder:
@@ -331,10 +331,22 @@ export function validateImageUpload(
 }
 
 /**
- * Randomised object key: `menu/{year}/{uuid}.{ext}`. The uuid is the only source
- * of unpredictability, which is what stops one upload overwriting another.
+ * Randomised delivery key: `menu/{year}/{uuid}.{ext}`. The uuid is the only source
+ * of unpredictability, which is what stops one upload overwriting another. The
+ * shape is the same for every provider (R2 object key or ImageKit filePath), so
+ * `/api/media` does not care which store holds the bytes.
  */
-export function buildR2Key(extension: "jpg" | "png" | "webp", now: Date = new Date()): string {
+export function buildImageKey(extension: "jpg" | "png" | "webp", now: Date = new Date()): string {
   const year = now.getUTCFullYear();
   return `menu/${year}/${crypto.randomUUID()}.${extension}`;
+}
+
+/**
+ * Randomised gallery delivery key: `gallery/{year}/{uuid}.{ext}`. Kept in its own
+ * namespace so gallery photographs are never confused with dish photos, and no
+ * code that sweeps one namespace can touch the other.
+ */
+export function buildGalleryKey(extension: "jpg" | "png" | "webp", now: Date = new Date()): string {
+  const year = now.getUTCFullYear();
+  return `gallery/${year}/${crypto.randomUUID()}.${extension}`;
 }

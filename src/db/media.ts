@@ -1,26 +1,22 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 
+import { createMediaProvider, type MediaEnvironment, type MediaProvider } from "@/lib/media-provider";
+
 /**
- * Handle on the private R2 bucket holding dish images.
+ * Handle on the active media provider for the current request.
  *
- * The bucket has no public URL. Uploads go through the authenticated server
- * action and downloads go through `/api/media/[...path]`, so the browser never
- * holds a write credential.
+ * The provider is chosen by `MEDIA_PROVIDER` from the Worker environment
+ * (`imagekit`, or `r2` for the legacy shim). Configuration is read as a loose
+ * record rather than through the generated `CloudflareEnv` interface so this
+ * module does not churn every time the bindings file changes.
  */
-export type MediaBucket = R2Bucket;
+let cached: MediaProvider | null = null;
 
-let cached: MediaBucket | undefined;
-
-/**
- * R2 handle for the current request. The binding comes from
- * `getCloudflareContext()`, which resolves the same way in `next dev`, in
- * `opennextjs-cloudflare preview`, and in a deployed Worker.
- */
-export function getMediaBucket(): MediaBucket {
+export function getMediaProvider(): MediaProvider {
   if (cached) {
     return cached;
   }
   const { env } = getCloudflareContext();
-  cached = env.MEDIA;
+  cached = createMediaProvider(env as unknown as MediaEnvironment);
   return cached;
 }

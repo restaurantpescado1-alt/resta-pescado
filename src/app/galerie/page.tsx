@@ -58,8 +58,8 @@ async function loadGallery(): Promise<GalleryData> {
  * 1. The curated photographs bundled in the repository, described by
  *    `src/lib/gallery-images.ts` and served from `public/`. Their description, caption, order
  *    and visibility are the owner's, stored in `bundled_gallery_images`.
- * 2. Whatever the owner uploads through the dashboard, in R2 via `gallery_images`. Their
- *    order is `sort_order`.
+ * 2. Whatever the owner uploads through the dashboard, served via the media route from
+ *    `gallery_images`. Their order is `sort_order`.
  *
  * Bundled first, because that is the sequence a curator chose and uploads arrive later.
  * Both tables are read on every request rather than inlined, so a photograph the owner adds,

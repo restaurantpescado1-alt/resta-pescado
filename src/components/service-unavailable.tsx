@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 /**
- * Shown when D1 or R2 fails on a public page. A visitor gets an explanation and a
+ * Shown when D1 or the media store fails on a public page. A visitor gets an explanation and a
  * retry rather than a Worker exception, per the Phase 1 requirement for a useful
  * public error state.
  */

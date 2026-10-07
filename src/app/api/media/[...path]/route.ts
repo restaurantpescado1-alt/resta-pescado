@@ -1,5 +1,5 @@
 import { getDb } from "@/db";
-import { getMediaBucket } from "@/db/media";
+import { getMediaProvider } from "@/db/media";
 import { findGalleryImageByKey } from "@/db/repositories/menu";
 import { getOwnerProfileFrom } from "@/lib/authz";
 
@@ -7,12 +7,12 @@ export const dynamic = "force-dynamic";
 
 /** `menu/{year}/{uuid}.{ext}` — dish photos, public menu content. */
 const MENU_KEY = /^menu\/\d{4}\/[0-9a-f-]{36}\.(jpg|png|webp)$/;
-/** `gallery/{year}/{uuid}.{ext}` — owner-uploaded photographs, see `galleryR2Key`. */
+/** `gallery/{year}/{uuid}.{ext}` — owner-uploaded photographs, see `buildGalleryKey`. */
 const GALLERY_KEY = /^gallery\/\d{4}\/[0-9a-f-]{36}\.(jpg|png|webp)$/;
 
 const NOT_FOUND = () => new Response("Not found", { status: 404 });
 
-/** A dish photo's bytes at a key never change, so the upload's header is safe. */
+/** A dish photo's bytes at a key never change, so a long cache header is safe. */
 const MENU_CACHE_CONTROL = "public, max-age=31536000, immutable";
 
 /**
@@ -23,11 +23,19 @@ const MENU_CACHE_CONTROL = "public, max-age=31536000, immutable";
 const GALLERY_CACHE_CONTROL = "public, max-age=0, must-revalidate";
 
 /**
- * Serves an object from the private R2 bucket.
+ * Serves a stored asset through the Worker.
  *
- * The bucket has no public URL, so this route is the only way an image reaches a
- * browser. Keys are validated against the two shapes above before any lookup,
- * which stops a crafted key from probing the bucket.
+ * This route is the only URL the app ever publishes for a stored image; the
+ * provider's own endpoint (ImageKit's CDN, or the R2 bucket in the legacy
+ * configuration) is never exposed to a browser. Keeping every fetch in front of
+ * this route is what makes the authorization below mean anything. Keys are
+ * validated against the two shapes above before any lookup, which stops a
+ * crafted key from probing the store.
+ *
+ * The provider proxies the bytes: `getMediaProvider().read(key)` returns the
+ * upstream body for the URL that providers deliver. Any query the client sends
+ * (ImageKit transformations, thumbnails, …) is deliberately ignored — see
+ * `docs/ARCHITECTURE.md` for why transformations are future work.
  *
  * The two namespaces are authorized differently, and the difference is the point:
  *
@@ -71,16 +79,22 @@ export async function GET(
 
 /** The bytes behind a key, once the caller is allowed to have them. */
 async function serve(key: string, cacheControl: string): Promise<Response> {
-  const media = getMediaBucket();
-  const object = await media.get(key);
+  const result = await getMediaProvider().read(key);
 
-  if (!object || !object.body) {
+  if (result.status === "not-found") {
     return NOT_FOUND();
   }
 
-  return new Response(object.body as ReadableStream, {
+  if (result.status === "unavailable") {
+    // The store exists but cannot serve the bytes right now. A 502 tells the CDN not
+    // to cache the failure, unlike a 500 which, for a few providers, it will.
+    console.error(`Media read unavailable: key=${key}`, result.cause);
+    return new Response("Unavailable", { status: 502 });
+  }
+
+  return new Response(result.body, {
     headers: {
-      "content-type": object.httpMetadata?.contentType ?? "application/octet-stream",
+      "content-type": result.contentType ?? "application/octet-stream",
       "cache-control": cacheControl,
       // The key is a random uuid, so the bytes at a key never change.
       "etag": `"${key}"`,

@@ -35,8 +35,8 @@ import * as schema from "../src/db/schema";
  *   route had something to serve. `docs/CONTENT_POLICY.md` ranks "no image" above
  *   invented imagery, and a grey rectangle on "Dorade" would be worse than nothing, so
  *   `image_key` stays null for every item. The end-to-end suite uploads its own image
- *   to exercise the R2 path.
- * - **No uploaded gallery images.** `gallery_images` stays empty and holds only R2
+ *   to exercise the media upload and delivery path.
+ * - **No uploaded gallery images.** `gallery_images` stays empty and holds only owner
  *   uploads. The photographs that ship with the repository are *not* seeded into it:
  *   they are written to `bundled_gallery_images`, which stores no object key and cannot
  *   be mistaken for an upload. See `seedBundledGallery`.
@@ -49,8 +49,31 @@ import * as schema from "../src/db/schema";
 
 const D1_STATE_DIR = ".wrangler/state/v3/d1";
 
+/**
+ * The database `npm run db:migrate:local` and `npm run preview` both use: the
+ * top-level `d1_databases` entry in `wrangler.jsonc`. `package.json` hardcodes
+ * the same name for the migrate script, so this is a repo-wide constant rather
+ * than a value parsed out of the JSONC config.
+ */
+const TOP_LEVEL_DATABASE_NAME = "resta-pescado-db";
+
+const WRANGLER_BIN = "node_modules/wrangler/bin/wrangler.js";
+
+/**
+ * Wrangler keys local D1 storage by `database_id`, so every environment block
+ * (top-level, `--env preview`, ...) gets its own `.sqlite` file in the same
+ * directory and directory order says nothing about which is which. When more
+ * than one candidate exists, asking is the only honest option: run the same
+ * harmless query `db:migrate:local` would run, and see which file the run
+ * touched. Guessing — by name, by schema, by recency — would seed whichever
+ * database sorts first, which is how the local suite can end up asserting
+ * against a database the seed never wrote to.
+ *
+ * The single-candidate path is untouched, so CI (which only ever has one local
+ * file) never spawns a subprocess here.
+ */
 async function findLocalD1File(): Promise<string> {
-  const { readdir } = await import("node:fs/promises");
+  const { readdir, stat } = await import("node:fs/promises");
 
   const missing = new Error(
     `No local D1 state under ${D1_STATE_DIR}. Run "npm run db:migrate:local" first.`,
@@ -70,18 +93,73 @@ async function findLocalD1File(): Promise<string> {
     throw missing;
   }
 
-  const files = await readdir(path.join(D1_STATE_DIR, directory));
-  const sqlite = files.find((file) => file.endsWith(".sqlite"));
-  if (sqlite === undefined) {
-    throw new Error(`No .sqlite file found in ${D1_STATE_DIR}/${directory}.`);
+  const stateDir = path.join(D1_STATE_DIR, directory);
+  const files = (await readdir(stateDir))
+    .filter((file) => file.endsWith(".sqlite") && file !== "metadata.sqlite")
+    .sort();
+  if (files.length === 0) {
+    throw new Error(`No .sqlite file found in ${stateDir}.`);
   }
 
-  /*
-   * Absolute, deliberately. `assertLocalDatabasePath` rejects a relative path because
-   * a relative path means different files depending on the working directory, so
-   * resolving here is what lets the guard prove the file is inside `.wrangler/state`.
-   */
-  return path.resolve(path.join(D1_STATE_DIR, directory, sqlite));
+  // Absolute, deliberately: `assertLocalDatabasePath` rejects a relative path
+  // because a relative path means different files depending on the working
+  // directory, so resolving here is what lets the guard prove the file is
+  // inside `.wrangler/state`.
+  const candidates = files.map((file) => path.resolve(path.join(stateDir, file)));
+  const [only, ...restOfCandidates] = candidates;
+  if (only !== undefined && restOfCandidates.length === 0) {
+    return only;
+  }
+
+  const { execFile } = await import("node:child_process");
+  const { promisify } = await import("node:util");
+  const run = promisify(execFile);
+
+  const tracked = (candidate: string) => [candidate, `${candidate}-shm`, `${candidate}-wal`];
+  const snapshot = async (): Promise<Map<string, number | null>> => {
+    const entries = new Map<string, number | null>();
+    for (const candidate of candidates) {
+      for (const file of tracked(candidate)) {
+        try {
+          entries.set(file, (await stat(file)).mtimeMs);
+        } catch {
+          entries.set(file, null);
+        }
+      }
+    }
+    return entries;
+  };
+
+  const before = await snapshot();
+  try {
+    await run(
+      process.execPath,
+      [WRANGLER_BIN, "d1", "execute", TOP_LEVEL_DATABASE_NAME, "--local", "--command", "SELECT 1"],
+      { timeout: 60_000, windowsHide: true },
+    );
+  } catch (error) {
+    throw new Error(
+      `Could not ask wrangler which local file holds "${TOP_LEVEL_DATABASE_NAME}" ` +
+        `(is node_modules/wrangler installed?): ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  const after = await snapshot();
+
+  const touched = candidates.filter((candidate) =>
+    tracked(candidate).some((file) => before.get(file) !== after.get(file)),
+  );
+  const [hit, ...restOfHits] = touched;
+  if (hit !== undefined && restOfHits.length === 0) {
+    return hit;
+  }
+
+  throw new Error(
+    `Several local D1 files exist under ${D1_STATE_DIR}, and none of them belongs to ` +
+      `"${TOP_LEVEL_DATABASE_NAME}" as far as a probe of wrangler could tell:\n` +
+      candidates.map((candidate) => `  - ${candidate}`).join("\n") +
+      "\nRemove the files that belong to wrangler configs you no longer use, then run " +
+      '"npm run db:migrate:local" followed by "npm run db:seed:local" again.',
+  );
 }
 
 /**
@@ -271,7 +349,7 @@ export async function seed(): Promise<void> {
   console.log(`  fish refs  : ${illustrationCount} items with a reference illustration`);
   console.log(`  featured   : 0 (owner selects these from the dashboard)`);
   console.log(`  bundled    : ${bundledImages.length} photographs (owner edits preserved)`);
-  console.log(`  uploads    : 0 images (gallery_images is for R2 uploads only)`);
+  console.log(`  uploads    : 0 images (gallery_images is for owner uploads only)`);
   console.log(`  photos     : 0 seeded (image_key null on every item)`);
   console.log(
     `  stale rows : ${isDestructiveResetAllowed() ? "removal enabled (SEED_ALLOW_DELETE=1)" : "left untouched (set SEED_ALLOW_DELETE=1 to reset)"}`,
