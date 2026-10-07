@@ -130,4 +130,41 @@ test.describe("screenshots", () => {
       }
     }
   });
+
+  /**
+   * Phase 6 capture.
+   *
+   * The hero now plays a video, which makes `networkidle` unsuitable (long-lived range
+   * requests can keep it from settling). The frame is made deterministic instead: wait
+   * for autoplay to reach the playing state, then pause the element so the still is a
+   * single composed frame rather than a motion blur. In a poster-only mode the hero is
+   * already still, so the wait just times out and the capture proceeds with the poster.
+   */
+  test("capture the cinematic hero at both widths", async ({ page }) => {
+    test.skip(
+      !process.env.CAPTURE_SCREENSHOTS,
+      "set CAPTURE_SCREENSHOTS=1 to write the review PNGs",
+    );
+
+    const OUTPUT_DIR = "docs/screenshots/phase-6";
+    await mkdir(OUTPUT_DIR, { recursive: true });
+
+    for (const [suffix, viewport] of VIEWPORTS) {
+      await page.setViewportSize(viewport);
+      await page.goto("/", { waitUntil: "load" });
+
+      const heroVideo = page.getByTestId("hero-video");
+      try {
+        await page.waitForSelector('[data-testid="hero-video"][data-state="playing"]', {
+          timeout: 10_000,
+        });
+        await heroVideo.evaluate((node) => (node as HTMLVideoElement).pause());
+      } catch {
+        // Poster-only mode or a slow start: capture the poster composition as-is.
+      }
+
+      await expect(page.locator("body")).toBeVisible();
+      await page.screenshot({ path: `${OUTPUT_DIR}/home-${suffix}.png`, fullPage: true });
+    }
+  });
 });

@@ -6,6 +6,7 @@ function itemRow(page: Page, itemId: string) {
 }
 
 import { allApprovedItems } from "../../scripts/approved-menu";
+import { SEED_SETTINGS } from "../../scripts/site-settings";
 
 import {
   CONFIRMED_FAMILY_NOTE,
@@ -45,9 +46,7 @@ test.describe("public menu", () => {
     await expect(
       page.getByRole("banner").getByRole("link", { name: "Resta Pescado" }),
     ).toBeVisible();
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-      "Poissons et fruits de mer, préparés à Alger.",
-    );
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(SEED_SETTINGS.heroTitleFr);
     await expect(page.getByRole("link", { name: "Voir la carte" })).toBeVisible();
   });
 

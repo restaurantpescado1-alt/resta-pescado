@@ -15,9 +15,9 @@ export const SEED_SETTINGS = {
   mapsUrl: "https://maps.app.goo.gl/n3cMmMpeXeLDsQtY6",
   addressFr: null,
   familyNoteFr: "Restaurant familial. Une chaise haute est disponible pour les enfants.",
-  heroTitleFr: "Poissons et fruits de mer, préparés à Alger.",
+  heroTitleFr: "Le goût de la mer, à Alger.",
   heroSubtitleFr:
-    "Consultez notre carte et appelez-nous pour commander, réserver une table ou demander une livraison.",
+    "Poissons et fruits de mer à déguster sur place. Commande, réservation et livraison par téléphone.",
 } as const;
 
 /**

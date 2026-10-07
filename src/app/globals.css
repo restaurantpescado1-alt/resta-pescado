@@ -117,6 +117,39 @@ body {
 }
 
 /**
+ * The scrim over the hero video.
+ *
+ * Text contrast is guaranteed against the worst frame the footage can show: a pure
+ * white pixel behind the headline. Compositing rgba(6, 63, 121, 0.90) over white gives
+ * a luminance of ~0.081, which puts `--rp-on-ocean` (9.6:1 on solid ocean) at ~7.4:1
+ * and `--rp-on-ocean-soft` at ~6.2:1 — both above the 5.6:1 the palette holds itself
+ * to. So the left of the gradient never drops below 0.90 while text can be there; the
+ * right side, which is empty on desktop, opens up so the footage reads through.
+ *
+ * Below `md` the copy spans the full width, so the whole scrim stays at (or above)
+ * 0.88 — the same guarantee, without a light edge for text to run into.
+ */
+.hero-scrim {
+  background-image: linear-gradient(
+    100deg,
+    rgba(6, 63, 121, 0.94) 0%,
+    rgba(6, 63, 121, 0.9) 52%,
+    rgba(7, 92, 158, 0.62) 78%,
+    rgba(7, 92, 158, 0.42) 100%
+  );
+}
+
+@media (max-width: 767px) {
+  .hero-scrim {
+    background-image: linear-gradient(
+      180deg,
+      rgba(6, 63, 121, 0.92) 0%,
+      rgba(6, 63, 121, 0.88) 100%
+    );
+  }
+}
+
+/**
  * Respects a visitor who has asked the system to reduce motion. The waves and the
  * sticky bar transition are the only animated things on the site.
  */

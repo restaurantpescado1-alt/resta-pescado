@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { DishCard } from "@/components/dish";
+import { HeroVideo } from "@/components/hero-video";
 import { SafeImage } from "@/components/safe-image";
 import { ServiceUnavailable } from "@/components/service-unavailable";
 import { getDb } from "@/db";
@@ -13,6 +14,7 @@ import {
   FISH_REFERENCE_EXPLANATION,
   listFishReferenceImages,
 } from "@/lib/fish-images";
+import { resolveHeroMedia } from "@/lib/hero-media";
 import { selectHomePreview, telHref } from "@/lib/public-site";
 
 export const dynamic = "force-dynamic";
@@ -24,14 +26,19 @@ export const dynamic = "force-dynamic";
 const PREVIEW_LIMIT = 6;
 
 /**
- * The hero picture.
+ * The dining-room photograph.
  *
- * Read from the gallery manifest rather than hardcoded, so the hero cannot end up
+ * Read from the gallery manifest rather than hardcoded, so the page cannot end up
  * pointing at a file the gallery does not publish. A missing entry would be a manifest
  * bug, and `getBundledGalleryImage` returning nothing is handled by simply not
  * rendering the picture.
+ *
+ * It used to be the hero's visual; the hero now plays licensed stock footage instead
+ * (see `docs/HERO_VIDEO.md`), and footage of an aquarium must not sit where the
+ * restaurant's own room used to be without explanation. The photograph belongs with
+ * the family section now, where dining in is what is being described.
  */
-const HERO_IMAGE = getBundledGalleryImage("restaurant-dining-room");
+const DINING_ROOM_IMAGE = getBundledGalleryImage("restaurant-dining-room");
 
 type HomeData =
   | { status: "ok"; items: MenuItemRow[]; settings: SiteSettingsRow | null }
@@ -67,6 +74,7 @@ export default async function HomePage() {
 
   const { items, settings } = data;
   const guide = listFishReferenceImages().slice(0, 4);
+  const heroMedia = resolveHeroMedia(process.env);
 
   return (
     <div data-testid="home">
@@ -75,26 +83,36 @@ export default async function HomePage() {
         fallback makes no sourcing or provenance claim, because
         `docs/CONTENT_POLICY.md` forbids inventing one and nothing in the database
         states it.
-      */}
-      {/*
-          The negative margin pulls the hero out to the edge of the content container so
-          the wave runs the full width. It is exactly `main`'s own `px-4` and nothing
-          more.
 
-          Wider values here (`sm:-mx-6 lg:-mx-8`) overflowed the viewport instead,
-          because `main`'s padding never grew at those breakpoints: at 768px the hero
-          measured 784px wide against a 768px viewport and the page scrolled sideways.
-        */}
-        <section className="wave-hero -mx-4 px-4 py-14 text-on-ocean">
-        <div className="mx-auto grid max-w-6xl items-center gap-10 md:grid-cols-2">
+        The negative margin pulls the hero out to the edge of the content container so
+        the wave runs the full width. It is exactly `main`'s own `px-4` and nothing
+        more.
+
+        Wider values here (`sm:-mx-6 lg:-mx-8`) overflowed the viewport instead,
+        because `main`'s padding never grew at those breakpoints: at 768px the hero
+        measured 784px wide against a 768px viewport and the page scrolled sideways.
+
+        `relative overflow-hidden` frames the licensed aquarium footage behind the
+        copy (`docs/HERO_VIDEO.md`): the video fills the section, the scrim keeps the
+        headline readable over any frame, and the section clips both so nothing spills
+        into the page's horizontal scroll width.
+      */}
+      <section className="wave-hero relative -mx-4 overflow-hidden px-4 py-14 text-on-ocean">
+        <HeroVideo
+          desktopSrc={heroMedia.desktopSrc}
+          mobileSrc={heroMedia.mobileSrc}
+          posterSrc={heroMedia.posterSrc}
+        />
+
+        <div className="relative z-10 mx-auto grid max-w-6xl items-center gap-10 md:grid-cols-2">
           {/*
-            Text first in the source so it is the first thing read on a narrow screen,
-            and `order` puts the picture after the title and actions on mobile while
-            still sitting beside them on desktop.
+            Text only. The right-hand column is deliberately left empty: it used to
+            hold the dining-room photograph, and now the footage shows through — that
+            half of the hero is the picture.
           */}
-          <div className="order-1">
+          <div>
             <h1 className="max-w-2xl text-4xl font-bold tracking-tight sm:text-5xl">
-              {settings?.heroTitleFr ?? "Poissons et fruits de mer, préparés à Alger."}
+              {settings?.heroTitleFr ?? "Le goût de la mer, à Alger."}
             </h1>
             <p className="mt-4 max-w-xl text-lg text-on-ocean-soft">
               {/*
@@ -103,7 +121,7 @@ export default async function HomePage() {
                 so the fallback points at the phone, which is what actually works.
               */}
               {settings?.heroSubtitleFr ??
-                "Consultez notre carte et appelez-nous pour commander, réserver une table ou demander une livraison."}
+                "Poissons et fruits de mer à déguster sur place. Commande, réservation et livraison par téléphone."}
             </p>
 
             <div className="mt-8 flex flex-wrap gap-3">
@@ -123,30 +141,6 @@ export default async function HomePage() {
                 </a>
               ) : null}
             </div>
-          </div>
-
-          {/*
-            A photograph of the dining room, never of a dish.
-
-            Alt text names the room and says it is a photograph, because the failure
-            mode here is a visitor reading a restaurant interior as a picture of what
-            the fish looks like. `contain` keeps the whole frame on the warm colour so
-            the picture is never cropped to a shape it was not taken in.
-          */}
-          <div className="order-2">
-            {HERO_IMAGE ? (
-              <figure className="overflow-hidden rounded-2xl border border-on-ocean/25 bg-warm">
-                <SafeImage
-                  src={bundledGalleryUrl(HERO_IMAGE.webpFile)}
-                  alt="Photographie de la salle du restaurant Resta Pescado."
-                  width={HERO_IMAGE.width}
-                  height={HERO_IMAGE.height}
-                  loading="eager"
-                  className="aspect-[4/3] w-full object-contain"
-                  fallbackClassName="aspect-[4/3] w-full rounded-none border-0"
-                />
-              </figure>
-            ) : null}
           </div>
         </div>
       </section>
@@ -185,16 +179,42 @@ export default async function HomePage() {
       {/*
         Family section. `family_note_fr` is the owner's own sentence about the high
         chair, printed as written.
+
+        The dining-room photograph lives here since the hero gave up its spot to the
+        video: this is the section about visiting in person, which is what a picture
+        of the room is evidence of.
+
+        Alt text names the room and says it is a photograph, because the failure mode
+        here is a visitor reading a restaurant interior as a picture of what the fish
+        looks like. `contain` keeps the whole frame on the warm colour so the picture
+        is never cropped to a shape it was not taken in.
       */}
       {settings?.familyNoteFr ? (
         <section
           className="rounded-2xl bg-marine px-6 py-8 text-on-ocean sm:px-8"
           aria-labelledby="famille-titre"
         >
-          <h2 id="famille-titre" className="text-xl font-bold">
-            En famille
-          </h2>
-          <p className="mt-2 max-w-prose text-on-ocean-soft">{settings.familyNoteFr}</p>
+          <div className="grid gap-6 sm:grid-cols-2 sm:items-center">
+            <div>
+              <h2 id="famille-titre" className="text-xl font-bold">
+                En famille
+              </h2>
+              <p className="mt-2 max-w-prose text-on-ocean-soft">{settings.familyNoteFr}</p>
+            </div>
+            {DINING_ROOM_IMAGE ? (
+              <figure className="overflow-hidden rounded-xl border border-on-ocean/25 bg-warm">
+                <SafeImage
+                  src={bundledGalleryUrl(DINING_ROOM_IMAGE.webpFile)}
+                  alt="Photographie de la salle du restaurant Resta Pescado."
+                  width={DINING_ROOM_IMAGE.width}
+                  height={DINING_ROOM_IMAGE.height}
+                  loading="lazy"
+                  className="aspect-[4/3] w-full object-contain"
+                  fallbackClassName="aspect-[4/3] w-full rounded-none border-0"
+                />
+              </figure>
+            ) : null}
+          </div>
         </section>
       ) : null}
 
