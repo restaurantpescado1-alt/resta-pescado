@@ -113,6 +113,9 @@ export default async function HomePage() {
             <h1 className="max-w-2xl text-4xl font-bold tracking-tight sm:text-5xl">
               {settings?.heroTitleFr ?? "Le goût de la mer, à Alger."}
             </h1>
+            <p className="mt-2 text-sm font-medium text-on-ocean-soft/90">
+              Depuis 2018
+            </p>
             <p className="mt-4 max-w-xl text-lg text-on-ocean-soft">
               {/*
                 No "revised every day" and no "fish of the day". Both promise a

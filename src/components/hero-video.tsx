@@ -162,7 +162,7 @@ export function HeroVideo({
           ref={videoRef}
           data-testid="hero-video"
           data-state={state}
-          className="h-full w-full object-cover"
+          className="h-full w-full object-cover object-[50%_40%]"
           poster={posterSrc}
           width={1920}
           height={1080}
@@ -171,7 +171,7 @@ export function HeroVideo({
           src={src ?? undefined}
           onError={() => setFailed(true)}
         />
-        <div className="hero-scrim absolute inset-0" />
+        <div className="hero-scrim absolute inset-0 bg-gradient-to-t from-ocean/40 via-ocean/15 to-ocean/10" />
       </div>
 
       {/*
