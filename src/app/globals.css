@@ -183,7 +183,6 @@ body {
   color: var(--rp-ink);
   font-weight: 600;
 }
-<<<<<<< Updated upstream
 
 
 @keyframes reveal-up{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
@@ -193,11 +192,9 @@ body {
 @media(prefers-reduced-motion:reduce){.reveal,.reveal-delay-1,.reveal-delay-2{animation:none;opacity:1;transform:none}}
 
 
-
 @keyframes reveal-up{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}.reveal{opacity:0;transform:translateY(16px);animation:reveal-up 420ms ease-out forwards}.reveal-delay-1{animation-delay:60ms}.reveal-delay-2{animation-delay:120ms}
 @media(prefers-reduced-motion:reduce){.reveal,.reveal-delay-1,.reveal-delay-2{animation:none;opacity:1;transform:none}}
 
 
-=======
 \n@keyframes reveal-up{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}\n.reveal{opacity:0;transform:translateY(16px);animation:reveal-up 420ms ease-out forwards}\n.reveal-delay-1{animation-delay:60ms}\n.reveal-delay-2{animation-delay:120ms}\n@media(prefers-reduced-motion:reduce){.reveal,.reveal-delay-1,.reveal-delay-2{animation:none;opacity:1;transform:none}}\n
->>>>>>> Stashed changes
+
