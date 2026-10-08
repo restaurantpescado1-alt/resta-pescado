@@ -117,17 +117,9 @@ export default async function HomePage() {
             <p className="mt-2 text-sm font-medium text-on-ocean-soft/90">
               Depuis 2018
             </p>
-            <p className="mt-4 max-w-xl text-lg text-on-ocean-soft">
-              {/*
-                No "revised every day" and no "fish of the day". Both promise a
-                freshness the restaurant cannot guarantee and neither was confirmed,
-                so the fallback points at the phone, which is what actually works.
-              */}
-              {settings?.heroSubtitleFr ??
-                "Poissons et fruits de mer à déguster sur place. Commande, réservation et livraison par téléphone."}
-            </p>
 
-            <div className="mt-8 flex flex-wrap gap-3">
+
+            <div class="mt-6 flex flex-wrap gap-3 md:mt-8">
               <Link
                 href="/menu"
                 className="rounded-full bg-accent px-6 py-3 text-sm font-bold text-ink transition-transform hover:scale-[1.02]"
