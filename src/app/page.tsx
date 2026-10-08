@@ -4,6 +4,7 @@ import { DishCard } from "@/components/dish";
 import { HeroVideo } from "@/components/hero-video";
 import { SafeImage } from "@/components/safe-image";
 import { ServiceUnavailable } from "@/components/service-unavailable";
+import { Reveal } from "@/components/reveal";
 import { getDb } from "@/db";
 import { getPublicMenu, getSiteSettings } from "@/db/repositories/menu";
 import type { MenuCategoryRow, MenuItemRow, SiteSettingsRow } from "@/db/schema";
