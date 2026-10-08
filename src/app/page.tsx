@@ -119,7 +119,7 @@ export default async function HomePage() {
             </p>
 
 
-            <div class="mt-6 flex flex-wrap gap-3 md:mt-8">
+            <div className="mt-6 flex flex-wrap gap-3 md:mt-8">
               <Link
                 href="/menu"
                 className="rounded-full bg-accent px-6 py-3 text-sm font-bold text-ink transition-transform hover:scale-[1.02]"
