@@ -26,7 +26,7 @@ const NAV_LINKS = [
 export function SiteHeader({ settings }: { settings: PublicSettings }) {
   return (
     <header className="sticky top-0 z-40 bg-ocean text-on-ocean shadow-sm">
-      <div className="mx-auto flex max-w-6xl items-center gap-2 px-4 py-2 sm:gap-3 sm:py-3">
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-1 px-3 py-2 sm:gap-3 sm:px-4 sm:py-3">
         {/*
           `shrink-0` on the identity and the button, and `truncate` on neither: the name
           is short enough at 390px beside a 13px phone number, and truncating the
@@ -34,7 +34,7 @@ export function SiteHeader({ settings }: { settings: PublicSettings }) {
         */}
         <Link
           href="/"
-          className="shrink-0 text-base font-bold tracking-tight focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent sm:text-lg"
+          className="shrink-0 flex-1 text-center text-base font-bold tracking-tight focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent sm:text-lg"
           aria-label="Resta Pescado, accueil"
         >
           Resta&nbsp;Pescado
@@ -65,17 +65,16 @@ export function SiteHeader({ settings }: { settings: PublicSettings }) {
           rather than becoming an icon, because a recognisable number is more useful than
           a symbol and the widest layout still fits on one line with the menu button.
         */}
+      <MobileNav links={NAV_LINKS} />
         {settings.phoneFr ? (
           <a
             href={telHref(settings.phoneFr)}
-            className="ml-auto inline-flex min-h-11 shrink-0 items-center rounded-full bg-accent px-3 text-[13px] font-bold text-ink transition-transform hover:scale-[1.02] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on-ocean sm:px-4 sm:text-sm md:ml-0"
+            className="order-3 inline-flex min-h-11 shrink-0 items-center rounded-full bg-accent px-2 text-[12px] font-bold text-ink transition-transform hover:scale-[1.02] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on-ocean sm:px-4 sm:text-sm md:order-none md:ml-0"
             data-testid="header-phone"
           >
             {settings.phoneFr}
           </a>
         ) : null}
-
-        <MobileNav links={NAV_LINKS} />
       </div>
     </header>
   );

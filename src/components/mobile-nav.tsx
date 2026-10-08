@@ -76,7 +76,7 @@ export function MobileNav({ links }: { links: readonly NavLink[] }) {
         aria-controls="primary-mobile-nav"
         onClick={() => setOpen((value) => !value)}
         data-testid="mobile-nav-toggle"
-        className="inline-flex min-h-11 items-center gap-2 rounded-md px-3 text-sm font-semibold text-on-ocean transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:hidden"
+        className="order-1 inline-flex min-h-11 items-center gap-2 rounded-md px-2 text-sm font-semibold text-on-ocean transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:hidden"
       >
         <span aria-hidden="true" className="flex flex-col gap-[3px]">
           <span className="block h-[2px] w-4 rounded bg-current" />
