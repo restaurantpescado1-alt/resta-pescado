@@ -183,7 +183,7 @@ export function HeroVideo({
         <button
           type="button"
           data-testid="hero-video-toggle"
-          onClick={() => setUserPaused((paused) => !paused)}
+          onClick={() => { const v = videoRef.current; if (v) { v.muted = true; void v.play().catch(()=>{}); } setUserPaused(p => !p); }}
           className="absolute bottom-4 right-4 z-20 rounded-full border border-on-ocean/50 bg-ocean/90 px-4 py-2 text-xs font-semibold text-on-ocean transition-colors hover:bg-ocean"
         >
           {heroToggleLabel(playing)}
