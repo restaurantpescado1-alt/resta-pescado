@@ -139,15 +139,7 @@ body {
   );
 }
 
-@media (max-width: 767px) {
-  .hero-scrim {
-    background-image: linear-gradient(
-      180deg,
-      rgba(6, 63, 121, 0.92) 0%,
-      rgba(6, 63, 121, 0.88) 100%
-    );
-  }
-}
+@media (max-width: 767px) {\n  .hero-scrim {\n    background-image: linear-gradient(\n      180deg,\n      rgba(6, 63, 121, 0) 0%,\n      rgba(6, 63, 121, 0.6) 40%,\n      rgba(6, 63, 121, 0.85) 70%,\n      rgba(6, 63, 121, 0.92) 100%\n    );\n  }\n}
 
 /**
  * Respects a visitor who has asked the system to reduce motion. The waves and the
