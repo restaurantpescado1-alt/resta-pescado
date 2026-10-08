@@ -14,7 +14,6 @@ import {
   CONFIRMED_MAP_URL,
   CONFIRMED_PHONE,
   FISH_EXPLANATION,
-  FISH_LABEL,
   readPublicPrice,
   SEEDED_CATEGORY_NAME,
   SEEDED_CATEGORY_SLUG,
@@ -116,15 +115,8 @@ test.describe("no invented content", () => {
      * two image states. Anything else — an ingredient, a portion, a catch location, an
      * endorsement — is invented content, so each line is matched against what is
      * allowed rather than being spot-checked.
-     *
-     * The AI label is explicitly permitted, because it is a required disclosure rather
-     * than a claim about the food.
      */
-    const ALLOWED = new Set<string>([
-      ...APPROVED_DISH_NAMES,
-      "Sans image",
-      FISH_LABEL,
-    ]);
+    const ALLOWED = new Set<string>([...APPROVED_DISH_NAMES, "Sans image"]);
     // Prices are grouped with a narrow no-break space, which is awkward to type
     // literally, so they are matched by shape instead.
     const PRICE = /^\d[\d\s]*DA$/u;
@@ -204,12 +196,14 @@ test("the home preview is titled neutrally", async ({ page }) => {
  * Fish reference illustrations.
  */
 test.describe("fish reference illustrations", () => {
-  test("a dish with a species illustration carries the mandatory AI label", async ({ page }) => {
+test("a dish with a species illustration shows the image and no per-card badge", async ({ page }) => {
     await page.goto("/menu");
 
     const row = itemRow(page, SEEDED_ITEM_ID);
     await expect(row.locator("img")).toHaveCount(1);
-    await expect(row.getByTestId("fish-reference-label")).toHaveText(FISH_LABEL);
+    // The disclosure moved from a per-card badge to one sentence per page.
+    await expect(row.getByTestId("fish-reference-label")).toHaveCount(0);
+    await expect(row.getByText("Illustration IA")).toHaveCount(0);
   });
 
   test("the illustration is served from public/ and is a real WebP", async ({ page, request }) => {
@@ -224,18 +218,15 @@ test.describe("fish reference illustrations", () => {
   });
 
 /**
-   * Every species illustration carries the mandatory AI disclosure.
+   * No illustration on the menu carries a per-card badge.
    *
    * This counts illustrations by their source path rather than counting rows that
    * happen to hold an `<img>`. The two are not the same once the owner uploads a real
    * photograph: an uploaded photo replaces the illustration on that dish, so the row
-   * still has an image but no species reference and correctly no label. Asserting on
-   * row-with-img count would make this fail depending on which other spec ran first.
-   *
-   * The exact number of mapped dishes is pinned in `approved-menu.test.ts` instead, where
-   * it is a fact about the data rather than about one render of it.
+   * still has an image but no species reference. Asserting on row-with-img count would
+   * make this fail depending on which other spec ran first.
    */
-  test("every illustration on the menu is labelled", async ({ page }) => {
+  test("no illustration on the menu carries a per-card badge", async ({ page }) => {
     await page.goto("/menu");
 
     const illustration = page.locator('img[src*="/images/fish-guide/"]');
@@ -246,14 +237,11 @@ test.describe("fish reference illustrations", () => {
       // Nearest ancestor row, not `has:` on the src: three sardine dishes share one
       // image file, so matching by src alone would return all three rows at once.
       const row = image.locator("xpath=ancestor::*[@data-item-id][1]");
-      await expect(row.getByTestId("fish-reference-label")).toHaveCount(1);
+      await expect(row.getByTestId("fish-reference-label")).toHaveCount(0);
     }
 
-    // A dish carrying a species must never show the "no image" placeholder instead.
-    const labelled = page.locator("[data-item-id]", {
-      has: page.getByTestId("fish-reference-label"),
-    });
-    expect(await labelled.count()).toBe(count);
+    // The disclosure exists, once, above the whole page — not under each dish.
+    await expect(page.getByTestId("fish-reference-explanation")).toHaveCount(1);
   });
 
 test("a dish with no species shows the honest no-image state", async ({ page }) => {
@@ -271,11 +259,12 @@ test("a dish with no species shows the honest no-image state", async ({ page }) 
     await expect(plat.locator("img")).toHaveCount(0);
   });
 
-  test("the guide lists all 11 species, each labelled", async ({ page }) => {
+test("the guide lists all 11 species with no per-card badge", async ({ page }) => {
     await page.goto("/a-propos#guide-poissons");
 
     await expect(page.getByTestId("about")).toBeVisible();
-    await expect(page.getByTestId("guide-ai-label")).toHaveCount(11);
+    await expect(page.locator('img[src*="/images/fish-guide/"]')).toHaveCount(11);
+    await expect(page.getByTestId("guide-ai-label")).toHaveCount(0);
   });
 
 test("the guide never claims an image shows the cooked dish", async ({ page }) => {
@@ -291,6 +280,16 @@ test("the guide never claims an image shows the cooked dish", async ({ page }) =
 
     const text = (await page.locator("body").innerText()).toLowerCase();
     expect(text).not.toContain("photo du plat");
+    // The per-card badge is gone, renamed, and not hidden in a data attribute.
+    expect(text).not.toContain("illustration ia");
+  });
+
+  test("each relevant page carries the one fish-image sentence, once", async ({ page }) => {
+    for (const route of ["/", "/menu", "/a-propos"] as const) {
+      await page.goto(route);
+      await expect(page.getByTestId("fish-reference-explanation")).toHaveCount(1);
+      await expect(page.getByTestId("fish-reference-explanation")).toHaveText(FISH_EXPLANATION);
+    }
   });
 });
 

@@ -1,4 +1,4 @@
-import { chromium, type BrowserContext, type Page, type Response } from "@playwright/test";
+import { chromium, type Page, type Response } from "@playwright/test";
 
 import { allApprovedItems, APPROVED_CATEGORIES } from "./approved-menu";
 import { SEED_DELIVERY, SEED_SETTINGS } from "./site-settings";
@@ -9,6 +9,12 @@ import {
   parsePreviewSmokeArgs,
   usageForSmoke,
 } from "./preview-smoke-guards";
+import {
+  isAdminLoginUrl,
+  isMeaningfulTitle,
+  isNavigationCancelledPrefetch,
+  robotsForbidAllCrawling,
+} from "./preview-smoke-rules";
 
 /**
  * Read-only live-preview smoke test.
@@ -76,7 +82,15 @@ function trackPage(page: Page, log: ProblemLog): void {
     }
   });
   page.on("requestfailed", (request) => {
-    log.add(request.url(), `request failed: ${request.failure()?.errorText ?? "unknown error"}`);
+    const errorText = request.failure()?.errorText ?? "unknown error";
+    // Next.js app-router `<Link>` prefetches are cancelled by the browser when the
+    // visitor navigates elsewhere before they complete (`_rsc` + `net::ERR_ABORTED`).
+    // Those are navigation hints, not broken resources, so exactly that narrow case is
+    // ignored; every other failure is reported as before.
+    if (isNavigationCancelledPrefetch(request.url(), errorText)) {
+      return;
+    }
+    log.add(request.url(), `request failed: ${errorText}`);
   });
   page.on("response", (response) => {
     const url = response.url();
@@ -182,16 +196,27 @@ function checkMenu(page: Page, origin: string): Promise<Check> {
 }
 
 function checkHomeFacts(page: Page, origin: string): Promise<Check> {
-  return run(async () => {
+  let heroTitle = "";
+  const check = run(async () => {
     const response = await gotoOrigin(page, origin, "/");
     if (response === null) {
       return ["/ did not load"];
     }
 
     const failures: string[] = [];
-    const hero = await page.getByText(SEED_SETTINGS.heroTitleFr, { exact: true }).count();
-    if (hero === 0) {
-      failures.push(`titre d'accueil introuvable: ${SEED_SETTINGS.heroTitleFr}`);
+    /*
+     * The home title is the owner's `heroTitleFr` in D1, so it is editable and cannot be
+     * compared to the seeded default. The smoke verifies that a meaningful title exists
+     * and reports whatever text is actually being served.
+     */
+    const headings = page.locator("h1");
+    if ((await headings.count()) !== 1) {
+      failures.push(`titre d'accueil absent: ${await headings.count()} <h1> trouvé(s)`);
+    } else {
+      heroTitle = (await headings.first().innerText()).trim();
+      if (!isMeaningfulTitle(heroTitle)) {
+        failures.push(`titre d'accueil vide ou non significatif: « ${heroTitle} »`);
+      }
     }
 
     const phone = page.getByTestId("home-phone");
@@ -224,6 +249,9 @@ function checkHomeFacts(page: Page, origin: string): Promise<Check> {
 
     return failures;
   }, "Home carries the confirmed phone, hours, delivery and map link");
+  return check.then((result) =>
+    result.status === "pass" ? { ...result, detail: `ok — titre d'accueil : « ${heroTitle} »` } : result,
+  );
 }
 
 function checkContactFacts(page: Page, origin: string): Promise<Check> {
@@ -297,15 +325,47 @@ function checkNoUpdateClaims(page: Page, origin: string): Promise<Check> {
   }, "No unsupported daily-update claims on any page");
 }
 
-function checkPreviewNoindex(page: Page, context: BrowserContext, origin: string): Promise<Check> {
+async function fetchRobots(origin: string): Promise<{ status: number; body: string } | null> {
+  // A plain Node fetch, deliberately independent of the browser contexts: the check
+  // reads what an off-site crawler would read, and a browser-bound APIRequestContext
+  // was the mechanism implicated in a transiently empty body during a degraded edge.
+  // Two attempts rather than one, because the run retries nothing else.
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const response = await fetch(`${origin}/robots.txt`, {
+        headers: { accept: "text/plain" },
+        signal: AbortSignal.timeout(15_000),
+      });
+      return { status: response.status, body: await response.text() };
+    } catch {
+      if (attempt === 1) {
+        return null;
+      }
+    }
+  }
+  return null;
+}
+
+function checkPreviewNoindex(page: Page, origin: string): Promise<Check> {
   return run(async () => {
     const failures: string[] = [];
 
-    const robots = await context.request.get(`${origin}/robots.txt`);
-    if (robots.status() !== 200) {
-      failures.push(`robots.txt → HTTP ${robots.status()}`);
-    } else if (!/^\s*disallow:\s+\//m.test(await robots.text())) {
-      failures.push("robots.txt ne demande pas Disallow: / (indispensable pour un aperçu)");
+    /*
+     * Direct HTTP request, then directive parsing: the guarantee is "Disallow: /", and
+     * the status and raw body are reported on any miss so a future failure carries its
+     * own evidence instead of a bare assertion.
+     */
+    const robots = await fetchRobots(origin);
+    if (robots === null) {
+      failures.push("robots.txt → requête impossible (aucune réponse en 15 s)");
+    } else if (robots.status !== 200) {
+      failures.push(`robots.txt → HTTP ${robots.status}`);
+    } else if (!robotsForbidAllCrawling(robots.body)) {
+      failures.push(
+        `robots.txt ne demande pas Disallow: / (texte reçu : ${JSON.stringify(
+          robots.body.slice(0, 120),
+        )})`,
+      );
     }
 
     const response = await gotoOrigin(page, origin, "/");
@@ -336,7 +396,7 @@ function checkSignedOutAdmin(page: Page, origin: string): Promise<Check> {
         failures.push(`${path} did not load`);
         continue;
       }
-      if (!page.url().endsWith("/admin/login")) {
+      if (!isAdminLoginUrl(page.url())) {
         failures.push(`${path} wasn't redirected to /admin/login (${page.url()})`);
       }
       if ((await page.getByTestId("login-form").count()) !== 1) {
@@ -516,7 +576,7 @@ async function main(): Promise<number> {
     checks.push(await checkHomeFacts(page, origin));
     checks.push(await checkContactFacts(page, origin));
     checks.push(await checkNoUpdateClaims(page, origin));
-    checks.push(await checkPreviewNoindex(page, desktop, origin));
+    checks.push(await checkPreviewNoindex(page, origin));
     checks.push(await checkSignedOutAdmin(page, origin));
     checks.push(await checkImages(page, origin));
     checks.push(await checkMobile(mobilePage, origin));

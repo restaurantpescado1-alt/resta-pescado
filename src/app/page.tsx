@@ -10,7 +10,6 @@ import type { MenuCategoryRow, MenuItemRow, SiteSettingsRow } from "@/db/schema"
 import { bundledGalleryUrl, getBundledGalleryImage } from "@/lib/gallery-images";
 import {
   FISH_REFERENCE_IMAGES,
-  FISH_REFERENCE_LABEL,
   FISH_REFERENCE_EXPLANATION,
   listFishReferenceImages,
 } from "@/lib/fish-images";
@@ -258,7 +257,6 @@ export default async function HomePage() {
               />
               <div className="px-3 py-2">
                 <p className="text-sm font-semibold">{fish.nameFr}</p>
-                <p className="mt-0.5 text-[11px] leading-tight text-ink/70">{FISH_REFERENCE_LABEL}</p>
               </div>
             </li>
           ))}

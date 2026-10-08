@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { CONFIRMED_MAP_URL, CONFIRMED_PHONE, FISH_LABEL } from "./helpers";
+import { CONFIRMED_MAP_URL, CONFIRMED_PHONE } from "./helpers";
 
 /**
  * Responsive behaviour and accessibility across the five public routes.
@@ -293,9 +293,10 @@ test.describe("accessibility", () => {
     expect(text).not.toMatch(/\b(Home|About us|Contact us|Our menu|Add to cart)\b/);
   });
 
-  test("the AI label is present on the guide as well as the menu", async ({ page }) => {
+  test("the fish-image disclosure is one sentence per page, not a per-card badge", async ({ page }) => {
     await page.goto("/a-propos");
-    await expect(page.getByTestId("guide-ai-label").first()).toHaveText(FISH_LABEL);
+    await expect(page.getByTestId("guide-ai-label")).toHaveCount(0);
+    await expect(page.getByTestId("fish-reference-explanation")).toHaveCount(1);
   });
 
   test("reduced motion is honoured", async ({ page }) => {

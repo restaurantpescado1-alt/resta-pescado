@@ -2,7 +2,6 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import { createPng } from "../helpers/image-fixtures";
 import {
-  FISH_LABEL,
   goToAdminMenu,
   itemRow,
   loginAsOwner,
@@ -128,7 +127,8 @@ test.describe("owner image removal", () => {
     const image = publicRow.locator("img").first();
     await expect(image).toBeVisible();
     await expect(image).toHaveAttribute("src", /\/images\/fish-guide\/merlan\.webp$/);
-    await expect(publicRow.getByTestId("fish-reference-label")).toHaveText(FISH_LABEL);
+    // The species illustration returns, described as such by its alt text.
+    await expect(image).toHaveAttribute("alt", /Illustration de référence/i);
 
     // And the object really is gone from the media store, not merely unreferenced.
     const media = await page.request.get(uploaded!);
@@ -156,7 +156,8 @@ test.describe("owner image removal", () => {
      * "Sans image" tile here would be nineteen identical grey squares on the menu.
      */
     await expect(after.locator("img")).toHaveCount(0);
-    await expect(after.getByTestId("fish-reference-label")).toHaveCount(0);
+    // No species, no photograph, and no badge either: the row is plainly text.
+    expect(await after.innerText()).not.toContain("Illustration IA");
     expect(await after.innerText()).not.toContain("Sans image");
 
     const media = await page.request.get(uploaded!);

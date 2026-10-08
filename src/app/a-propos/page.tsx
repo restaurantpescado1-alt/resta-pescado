@@ -7,7 +7,6 @@ import { getSiteSettings } from "@/db/repositories/menu";
 import type { SiteSettingsRow } from "@/db/schema";
 import {
   FISH_REFERENCE_EXPLANATION,
-  FISH_REFERENCE_LABEL,
   listFishReferenceImages,
 } from "@/lib/fish-images";
 
@@ -95,7 +94,8 @@ export default async function AboutPage() {
       </section>
 
       {/*
-        Fish guide. Each caption carries the species name and the mandatory AI label.
+        Fish guide. Each caption carries the species name; the one disclosure for the
+        whole guide sits above the list, not on every card.
       */}
       <section id="guide-poissons" className="mt-14 scroll-mt-32" aria-labelledby="guide-titre">
         <h2 id="guide-titre" className="text-2xl font-bold tracking-tight">
@@ -128,9 +128,6 @@ export default async function AboutPage() {
                 />
                 <figcaption className="px-4 py-3">
                   <span className="block font-bold">{image.nameFr}</span>
-                  <span className="mt-1 block text-xs leading-snug text-ink/70" data-testid="guide-ai-label">
-                    {FISH_REFERENCE_LABEL}
-                  </span>
                 </figcaption>
               </figure>
             </li>

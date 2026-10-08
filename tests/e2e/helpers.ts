@@ -79,22 +79,12 @@ export const CONFIRMED_FAMILY_NOTE =
   "Restaurant familial. Une chaise haute est disponible pour les enfants.";
 
 /**
- * The mandatory visible label for every AI-generated fish illustration.
+ * The single page-level sentence that discloses the fish illustrations.
  *
- * Deliberately short. It sits on every dish card that carries one, so the full sentence
- * was repeated fifteen times on the menu; `FISH_EXPLANATION` below carries it once per
- * section instead.
+ * Re-exported from the library rather than copied here, so the wording the public
+ * pages render and the wording the specs assert can never drift apart.
  */
-export const FISH_LABEL = "Illustration IA";
-
-/**
- * The one-time explanation that the illustrations show a species and not the served dish.
- * Asserted alongside `FISH_LABEL` so shortening the label cannot quietly remove the
- * disclosure it depends on.
- */
-export const FISH_EXPLANATION =
-  "Les images de poissons sont des illustrations de référence générées par IA. " +
-  "Elles représentent le type de poisson, pas le plat servi.";
+export { FISH_REFERENCE_EXPLANATION as FISH_EXPLANATION } from "../../src/lib/fish-images";
 
 export function ownerEmail(): string {
   return process.env.OWNER_EMAIL ?? "owner@resta-pescado.local";

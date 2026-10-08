@@ -13,7 +13,6 @@ import {
 import {
   FISH_REFERENCE_EXPLANATION,
   FISH_REFERENCE_IMAGES,
-  FISH_REFERENCE_LABEL,
   FISH_REFERENCE_ORDER,
   getFishReferenceImage,
   listFishReferenceImages,
@@ -197,20 +196,27 @@ describe("fish reference mapping", () => {
 });
 
 describe("fish reference manifest", () => {
-  it("uses the exact approved AI label", () => {
-    expect(FISH_REFERENCE_LABEL).toBe("Illustration IA");
-  });
-
-  it("carries the one-time explanation the short label depends on", () => {
+  it("carries the one concise page-level explanation", () => {
     /*
-     * The badge was shortened because it repeated fifteen times down the menu. That trade
-     * only holds while the sentence behind it is rendered once per section, so both halves
-     * are asserted here rather than trusting either alone.
+     * A visible badge under every dish was replaced by a single short sentence per
+     * page. The sentence has to stay short and honest: it says the visuals are
+     * illustrative and that the served dish may differ — nothing more.
      */
     expect(FISH_REFERENCE_EXPLANATION).toBe(
-      "Les images de poissons sont des illustrations de référence générées par IA. " +
-        "Elles représentent le type de poisson, pas le plat servi.",
+      "Visuels des poissons à titre illustratif. Présentation des plats variable.",
     );
+    expect(FISH_REFERENCE_EXPLANATION).not.toContain("Illustration IA");
+  });
+
+  it("keeps every alt text accurate about what kind of image it is", () => {
+    for (const image of Object.values(FISH_REFERENCE_IMAGES)) {
+      expect(image.altFr.length).toBeGreaterThan(20);
+      // Describes the species and names the kind of image.
+      expect(image.altFr).toContain("Illustration de référence");
+      // Never lets an illustration masquerade as a photograph of a served dish.
+      expect(image.altFr.toLowerCase()).not.toContain("photo");
+      expect(image.altFr.toLowerCase()).not.toContain("plat servi");
+    }
   });
 
   it("has a generated file for every manifest entry", () => {

@@ -8,39 +8,31 @@
  * enforce is simple and non-negotiable: they may illustrate *which fish*, and they
  * may never stand in for *what the dish looks like*.
  *
- * `FISH_REFERENCE_LABEL` is therefore not decoration. Every surface that renders one
- * of these images has to show it, which is why it is exported as a constant rather
- * than typed into each component, and why the label is asserted by the test suite.
- * Do not present these as photographs of the cooked dishes.
+ * Public pages therefore show one short sentence (`FISH_REFERENCE_EXPLANATION`)
+ * once per page, instead of repeating a visible badge on every card. The generated
+ * nature never disappears for a screen-reader user: the alt text still says what
+ * kind of image this is. These images stay out of the gallery, which is
+ * photographs only, and the source/provenance record in `docs/CONTENT_POLICY.md`
+ * is internal, not a public claim about the plates.
  */
 
 /**
- * The compact badge shown beside every reference illustration.
+ * The one concise sentence, shown once per page that displays reference illustrations.
  *
- * French, matching the public UI, and kept as one constant so it can never drift between
- * the menu, the fish guide, and the home page. Short on purpose: it sits under a dish name
- * in a narrow column, and the sentence that actually explains the images is
- * `FISH_REFERENCE_EXPLANATION`, shown once per section instead of on every card.
- */
-export const FISH_REFERENCE_LABEL = "Illustration IA";
-
-/**
- * The one explanation, shown once per section that displays reference illustrations.
+ * Repeating a badge under every illustrated dish would bury the menu in boilerplate,
+ * so a single short sentence appears once where the section starts.
  *
- * Repeating a two-line sentence under all fifteen illustrated dishes would bury the menu
- * in boilerplate, so it appears once where the section starts.
- *
- * The second sentence is the important one. A visitor has to understand that the picture
- * answers "which fish is this" and not "what does the plate look like", and that the
- * restaurant is not asserting a species identification from a generated image.
+ * The second sentence is the important one. A visitor has to understand that the
+ * picture answers "which fish is this" and not "what does the plate look like".
  */
 export const FISH_REFERENCE_EXPLANATION =
-  "Les images de poissons sont des illustrations de référence générées par IA. " +
-  "Elles représentent le type de poisson, pas le plat servi.";
+  "Visuels des poissons à titre illustratif. Présentation des plats variable.";
 
 /**
- * Phrase used inside alt text, where there is no room for the badge and the reader needs
- * to be told what kind of image this is rather than what it shows.
+ * Phrase used inside alt text, where there is no room for the section-level sentence
+ * and the reader needs to be told what kind of image this is rather than what it
+ * shows. Kept even though the visible badge is gone: it is the one assurance a
+ * screen-reader user gets that this is a drawing, not a photograph.
  */
 const FISH_REFERENCE_ALT_KIND = "Illustration de référence générée par IA";
 

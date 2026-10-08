@@ -1,5 +1,5 @@
 import type { MenuItemRow } from "@/db/schema";
-import { getFishReferenceImage, FISH_REFERENCE_LABEL } from "@/lib/fish-images";
+import { getFishReferenceImage } from "@/lib/fish-images";
 import { formatPrice, mediaUrl } from "@/lib/format";
 import { SafeImage } from "@/components/safe-image";
 
@@ -13,8 +13,9 @@ import { SafeImage } from "@/components/safe-image";
  *   it always wins, because it is the only thing that shows what you are served.
  * - An **AI-generated reference illustration** of the fish species, via
  *   `item.fishReferenceSlug`, from `public/`. It answers "which fish is this" and can
- *   never stand in for a photo of the plate, so the mandatory AI badge is rendered beside
- *   it and the illustration is drawn `contain` on the warm shell colour so the whole fish
+ *   never stand in for a photo of the plate; the caller renders the one page-level
+ *   sentence (`FISH_REFERENCE_EXPLANATION`) that discloses these images, and the
+ *   illustration is drawn `contain` on the warm shell colour so the whole fish
  *   shows rather than being cropped to a square.
  *
  * A dish with neither gets no image box at all. An earlier version rendered a dashed
@@ -22,13 +23,7 @@ import { SafeImage } from "@/components/safe-image";
  * nineteen identical grey squares carrying no information. The row is simply a text row,
  * which is what it is.
  */
-export function DishCard({
-  item,
-  showAiLabel = true,
-}: {
-  item: MenuItemRow;
-  showAiLabel?: boolean;
-}) {
+export function DishCard({ item }: { item: MenuItemRow }) {
   const fish = item.fishReferenceSlug ? getFishReferenceImage(item.fishReferenceSlug) : undefined;
   const photo = item.imageKey ? mediaUrl(item.imageKey) : null;
 
@@ -78,19 +73,6 @@ export function DishCard({
           simply left empty rather than filled with a placeholder sentence.
         */}
         {item.descriptionFr ? <p className="mt-1 text-sm text-ink/75">{item.descriptionFr}</p> : null}
-
-        {/*
-          The AI badge. Required whenever a reference illustration is shown, so a visitor
-          can never mistake a drawing of a fish for a photograph of a dish. The sentence
-          that explains these images is rendered once per section instead, by the caller.
-          `showAiLabel` exists for the fish guide, whose caption already names the species
-          and carries the label itself.
-        */}
-        {!photo && fish && showAiLabel ? (
-          <p className="mt-2 text-xs leading-snug text-ink/70" data-testid="fish-reference-label">
-            {FISH_REFERENCE_LABEL}
-          </p>
-        ) : null}
       </div>
     </li>
   );
