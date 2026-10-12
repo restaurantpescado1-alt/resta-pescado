@@ -783,6 +783,9 @@ export interface SiteSettingsUpdate {
   deliveryMinimumOrderTextFr: string | null;
   deliveryHoursFr: string | null;
   pickupTextFr: string | null;
+  googleReviewUrl: string | null;
+  facebookUrl: string | null;
+  instagramUrl: string | null;
 }
 
 /**

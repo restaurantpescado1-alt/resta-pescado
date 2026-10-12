@@ -46,7 +46,7 @@ export default async function ContactPage() {
   const phone = settings?.phoneFr;
 
   return (
-    <div data-testid="contact">
+    <div className="pt-8" data-testid="contact">
       <header className="pb-2">
         <h1 className="text-3xl font-bold tracking-tight">Contact</h1>
         <p className="mt-2 max-w-prose text-ink/75">
@@ -172,6 +172,59 @@ export default async function ContactPage() {
           >
             Ouvrir l&apos;itinéraire
           </a>
+        </section>
+      ) : null}
+
+      {/*
+        Social and review links. Only the links the owner has saved appear; no guessed
+        handle is ever rendered, because a wrong one points a visitor at a stranger.
+      */}
+      {settings?.facebookUrl || settings?.instagramUrl || settings?.googleReviewUrl ? (
+        <section className="mt-10" aria-labelledby="reseaux-titre">
+          <h2 id="reseaux-titre" className="text-xl font-bold">
+            Nous suivre
+          </h2>
+          <ul className="mt-3 flex flex-wrap gap-3">
+            {settings.facebookUrl ? (
+              <li>
+                <a
+                  href={settings.facebookUrl}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="inline-block rounded-full border border-line-strong px-4 py-2 text-sm font-semibold text-marine hover:bg-marine hover:text-on-ocean"
+                  data-testid="contact-facebook"
+                >
+                  Facebook
+                </a>
+              </li>
+            ) : null}
+            {settings.instagramUrl ? (
+              <li>
+                <a
+                  href={settings.instagramUrl}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="inline-block rounded-full border border-line-strong px-4 py-2 text-sm font-semibold text-marine hover:bg-marine hover:text-on-ocean"
+                  data-testid="contact-instagram"
+                >
+                  Instagram
+                </a>
+              </li>
+            ) : null}
+            {settings.googleReviewUrl ? (
+              <li>
+                <a
+                  href={settings.googleReviewUrl}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="inline-block rounded-full bg-accent px-4 py-2 text-sm font-bold text-ink"
+                  data-testid="contact-google-review"
+                >
+                  Laisser un avis sur Google
+                </a>
+              </li>
+            ) : null}
+          </ul>
         </section>
       ) : null}
     </div>

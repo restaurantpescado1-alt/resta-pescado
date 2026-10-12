@@ -100,7 +100,7 @@ test.describe("hero video", () => {
     await page.goto("/");
     await waitForState(page, "playing");
 
-    expect(urls.some((url) => url.includes("hero-aquarium-480.mp4"))).toBe(true);
+    expect(urls.some((url) => url.includes("hero-aquarium-720-v3.mp4"))).toBe(true);
     expect(urls.some((url) => url.includes("hero-aquarium-1080.mp4"))).toBe(false);
   });
 

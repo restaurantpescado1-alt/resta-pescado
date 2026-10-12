@@ -287,6 +287,56 @@ describe("selectHomePreview", () => {
     ];
     expect(selectHomePreview(items, 2).map((item) => item.id)).toEqual(["a", "b"]);
   });
+
+  /**
+   * The curated four are the point of the homepage teaser: one dish per kind of fish, in
+   * a fixed order, regardless of where they sit in the menu.
+   */
+  it("prefers the curated home preview dishes in their intended order", () => {
+    const items = [
+      make("item-crevettes-en-sauce", 1, { fish: "crevette" }),
+      make("item-sardines-friture", 2, { fish: "sardine" }),
+      make("item-thon-grille", 3, { fish: "thon" }),
+      make("item-dorade", 4, { fish: "dorade" }),
+      make("item-sepia-en-sauce", 5, { fish: "sepia" }),
+    ];
+    expect(selectHomePreview(items, 4).map((item) => item.id)).toEqual([
+      "item-sardines-friture",
+      "item-dorade",
+      "item-thon-grille",
+      "item-crevettes-en-sauce",
+    ]);
+  });
+
+  it("fills a hidden curated dish with a different-species illustrated dish", () => {
+    const items = [
+      make("item-sardines-friture", 1, { fish: "sardine" }),
+      make("item-dorade", 2, { fish: "dorade" }),
+      make("item-thon-grille", 3, { fish: "thon" }),
+      // "item-crevettes-en-sauce" is hidden, so the slot is filled by another species.
+      make("item-sepia-en-sauce", 4, { fish: "sepia" }),
+      make("item-rouget", 5, { fish: "rouget" }),
+    ];
+    expect(selectHomePreview(items, 4).map((item) => item.id)).toEqual([
+      "item-sardines-friture",
+      "item-dorade",
+      "item-thon-grille",
+      "item-sepia-en-sauce",
+    ]);
+  });
+
+  it("never repeats a species in the fallback", () => {
+    const items = [
+      make("item-sardines-friture", 1, { fish: "sardine" }),
+      // A second sardine dish must not fill the fourth slot.
+      make("item-sardines-fritures-garnies", 2, { fish: "sardine" }),
+      make("item-dorade", 3, { fish: "dorade" }),
+    ];
+    expect(selectHomePreview(items, 4).map((item) => item.id)).toEqual([
+      "item-sardines-friture",
+      "item-dorade",
+    ]);
+  });
 });
 
 describe("telHref", () => {

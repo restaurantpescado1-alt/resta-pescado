@@ -72,18 +72,18 @@ test.describe("public menu", () => {
     await expect(categories).toHaveCount(5);
     await expect(categories).toHaveText([
       /Nos Entrées/,
-      /Soupes/,
+      /Nos Soupes/,
       /Nos Poissons/,
-      /Desserts/,
-      /Boissons/,
+      /Nos Desserts/,
+      /Nos Boissons/,
     ]);
   });
 
   test("the whole approved card is served", async ({ page }) => {
     await page.goto("/menu");
 
-    // 34 dishes across the five categories.
-    await expect(page.locator("[data-item-id]")).toHaveCount(34);
+    // 37 dishes across the five categories.
+    await expect(page.locator("[data-item-id]")).toHaveCount(37);
   });
 
   test("public price is readable as a number", async ({ page }) => {
@@ -108,7 +108,7 @@ test.describe("no invented content", () => {
     await page.goto("/menu");
 
     const rows = page.locator("[data-item-id]");
-    await expect(rows).toHaveCount(34);
+    await expect(rows).toHaveCount(37);
 
     /*
      * A dish row may only ever contain: the confirmed name, a price in dinars, and the
@@ -155,16 +155,34 @@ test.describe("no invented content", () => {
     await expect(page.getByText(/recommand/i)).toHaveCount(0);
   });
 
-test("the home preview is titled neutrally", async ({ page }) => {
+  test("the home preview is titled neutrally", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByTestId("preview-title")).toHaveText("Découvrez notre carte");
+    await expect(page.getByTestId("preview-title")).toHaveText("À découvrir à la carte");
   });
 
   /**
-   * Nothing seeds a featured dish, so the preview falls back to the first illustrated
-   * fish dishes. The point of this test is the images, not the count: slicing the first
-   * six dishes of the menu outright would put salads and soups on the home page, and
-   * those have neither a photo nor a species, so they render as blank tiles.
+   * The preview is a curated, species-diverse set of four, not the first four dishes of
+   * the menu. This pins the exact ids so a reorder or a hidden dish cannot silently change
+   * the homepage, and pins the count to the teaser size.
+   */
+  test("the home preview shows the four curated dishes", async ({ page }) => {
+    await page.goto("/");
+
+    const rowIds = await page.locator("[data-item-id]").evaluateAll((nodes) =>
+      nodes.map((node) => node.getAttribute("data-item-id")),
+    );
+    expect(rowIds).toEqual([
+      "item-sardines-friture",
+      "item-dorade",
+      "item-thon-grille",
+      "item-crevettes-en-sauce",
+    ]);
+  });
+
+  /**
+   * Nothing seeds a featured dish, so the preview falls back to the curated illustrated
+   * fish dishes. The point of this test is the images, not the count: a dish with neither
+   * a photo nor a species renders as a blank tile.
    */
   test("the home preview only shows dishes that have an image", async ({ page }) => {
     await page.goto("/");

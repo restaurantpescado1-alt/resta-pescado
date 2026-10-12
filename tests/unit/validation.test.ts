@@ -341,6 +341,9 @@ describe("site settings input", () => {
     deliveryMinimumOrderTextFr: null,
     deliveryHoursFr: null,
     pickupTextFr: null,
+    googleReviewUrl: null,
+    facebookUrl: null,
+    instagramUrl: null,
   };
 
   it("accepts the restaurant's own confirmed values", () => {
@@ -363,6 +366,18 @@ describe("site settings input", () => {
     // A `javascript:` URL here would end up in an href on the public site.
     for (const mapsUrl of ["javascript:alert(1)", "data:text/html,x", "maps.app.goo.gl/abc"]) {
       expect(siteSettingsInputSchema.safeParse({ ...complete, mapsUrl }).success).toBe(false);
+    }
+  });
+
+  it("applies the same scheme rule to the review and social links", () => {
+    for (const field of ["googleReviewUrl", "facebookUrl", "instagramUrl"] as const) {
+      expect(siteSettingsInputSchema.safeParse({ ...complete, [field]: "javascript:alert(1)" }).success).toBe(
+        false,
+      );
+      expect(
+        siteSettingsInputSchema.safeParse({ ...complete, [field]: "https://example.com/page" }).success,
+      ).toBe(true);
+      expect(siteSettingsInputSchema.safeParse({ ...complete, [field]: "" }).success).toBe(true);
     }
   });
 

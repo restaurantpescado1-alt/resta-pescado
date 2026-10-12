@@ -60,26 +60,36 @@ export default async function MenuPage() {
     );
   }
 
-  const total = data.categories.reduce((sum, category) => sum + category.items.length, 0);
-
   return (
-    <div data-testid="menu">
+    <div className="pt-8" data-testid="menu">
       <header className="pb-2">
         <h1 className="text-3xl font-bold tracking-tight">La carte</h1>
         <p className="mt-2 max-w-prose text-ink/75">
-          {total} plats, avec les prix en dinars algériens. Pour commander, appelez-nous.
+          Une carte de poissons, accompagnements et boissons. Pour commander, appelez-nous.
         </p>
-        {data.settings?.hoursFr ? (
-          <p className="mt-1 text-sm text-ink/70">{data.settings.hoursFr}</p>
-        ) : null}
+        {/*
+          A short, page-local display line rather than the settings sentence. The stored
+          `hours_fr` remains the owner's confirmed wording and is still what the homepage
+          and contact page print; this is only the menu header's own line.
+        */}
+        <p className="mt-1 text-sm text-ink/70">Horaires : 11h15–15h15. Fermé le vendredi.</p>
       </header>
 
-      <nav aria-label="Catégories" className="mt-6 flex flex-wrap gap-2">
+      {/*
+        Category browsing. Horizontally scrollable on a phone rather than wrapping onto
+        several rows, and sticky just under the header so the jump links stay reachable
+        while the visitor scrolls a long menu. `scroll-mt-32` on each section clears both
+        bars when a link is followed.
+      */}
+      <nav
+        aria-label="Catégories"
+        className="sticky top-14 z-20 -mx-4 flex gap-2 overflow-x-auto bg-warm/95 px-4 py-2 backdrop-blur"
+      >
         {data.categories.map((category) => (
           <a
             key={category.id}
             href={`#${category.slug}`}
-            className="rounded-full border border-line-strong px-3 py-1.5 text-sm font-medium text-marine transition-colors hover:bg-marine hover:text-on-ocean"
+            className="whitespace-nowrap rounded-full border border-line-strong px-3 py-1.5 text-sm font-medium text-marine transition-colors hover:bg-marine hover:text-on-ocean"
           >
             {category.nameFr}
           </a>
@@ -92,7 +102,7 @@ export default async function MenuPage() {
         would repeat itself several times over.
       */}
       <p
-        className="mt-6 max-w-prose rounded-xl border border-line bg-warm/60 px-4 py-3 text-sm leading-snug text-ink/75"
+        className="mt-5 max-w-prose text-[13px] leading-snug text-ink/70"
         data-testid="fish-reference-explanation"
       >
         {FISH_REFERENCE_EXPLANATION}

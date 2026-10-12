@@ -33,6 +33,10 @@ export interface PublicSettings {
   deliveryMinimumOrderTextFr: string | null;
   deliveryHoursFr: string | null;
   pickupTextFr: string | null;
+  /** Confirmed public links. Null means the UI renders nothing rather than a guess. */
+  googleReviewUrl: string | null;
+  facebookUrl: string | null;
+  instagramUrl: string | null;
 }
 
 export type PublicSettingsResult =
@@ -54,6 +58,9 @@ function toPublicSettings(row: SiteSettingsRow | null): PublicSettings {
     deliveryMinimumOrderTextFr: row?.deliveryMinimumOrderTextFr ?? null,
     deliveryHoursFr: row?.deliveryHoursFr ?? null,
     pickupTextFr: row?.pickupTextFr ?? null,
+    googleReviewUrl: row?.googleReviewUrl ?? null,
+    facebookUrl: row?.facebookUrl ?? null,
+    instagramUrl: row?.instagramUrl ?? null,
   };
 }
 
@@ -80,20 +87,44 @@ export function telHref(phoneFr: string): string {
 }
 
 /**
+ * The dishes shown in the neutral home page preview, in the order they should appear.
+ *
+ * These four were chosen for the teaser because each is a different kind of fish or
+ * seafood (sardines, dorade, thon, crevettes) and each carries a species illustration, so
+ * the preview reads as a range rather than as one fish four times. The list holds ids
+ * only: names, prices and images are always read from the database row, never copied
+ * here, so a price change in the dashboard is reflected without touching this file.
+ *
+ * If one of these is hidden or missing, the slot is filled deterministically (see below)
+ * rather than left as a dead card.
+ */
+export const HOME_PREVIEW_ITEM_IDS = [
+  "item-sardines-friture",
+  "item-dorade",
+  "item-thon-grille",
+  "item-crevettes-en-sauce",
+] as const;
+
+/**
  * The dishes shown in the neutral home page preview.
  *
  * Order is the menu's manual sort order, which `getPublicMenu` already applies, so
  * this preserves the owner's ordering rather than reshuffling it.
  *
- * The fallback has to filter to dishes that have a species illustration. Taking the
- * first six dishes outright would fill the home page with salads and soups, and those
- * render as an empty tile because they have no photo and no fish reference, so the
- * preview would open on six blank cards.
+ * Selection, in priority order:
  *
- * Featured dishes are preferred when the owner has selected any, because that is a
- * decision they made. No card is badged either way, so the section never implies an
- * endorsement, and this returns fewer than `limit` rather than padding with dishes that
- * would render blank.
+ * 1. **The owner's featured dishes, if any.** Featuring is a decision they made, so it
+ *    wins outright. No card is badged either way, so the section never implies an
+ *    endorsement.
+ * 2. **The curated `HOME_PREVIEW_ITEM_IDS`, in that order.**
+ * 3. **Any remaining illustrated dish, in manual sort order**, to fill a slot whose
+ *    curated dish is hidden or unavailable. A dish is skipped if its species is already
+ *    on screen, so the fallback cannot turn the teaser into the same fish several times.
+ *
+ * Only dishes with an image are eligible for the fallback: the approved menu opens with
+ * salads and soups that have neither a photo nor a species, and those render as an empty
+ * tile, so the preview would otherwise open on blank cards. This returns fewer than
+ * `limit` rather than padding with dishes that would render blank.
  */
 export function selectHomePreview(items: MenuItemRow[], limit: number): MenuItemRow[] {
   if (items.length === 0 || limit <= 0) {
@@ -105,5 +136,46 @@ export function selectHomePreview(items: MenuItemRow[], limit: number): MenuItem
     return featured.slice(0, limit);
   }
 
-  return items.filter((item) => item.fishReferenceSlug !== null).slice(0, limit);
+  const byId = new Map(items.map((item) => [item.id, item]));
+  const chosen: MenuItemRow[] = [];
+  const chosenIds = new Set<string>();
+  const species = new Set<string>();
+
+  const accept = (item: MenuItemRow): void => {
+    if (chosen.length >= limit) {
+      return;
+    }
+    if (chosenIds.has(item.id)) {
+      return;
+    }
+    if (item.fishReferenceSlug !== null && species.has(item.fishReferenceSlug)) {
+      return;
+    }
+    chosen.push(item);
+    chosenIds.add(item.id);
+    if (item.fishReferenceSlug !== null) {
+      species.add(item.fishReferenceSlug);
+    }
+  };
+
+  for (const id of HOME_PREVIEW_ITEM_IDS) {
+    const item = byId.get(id);
+    if (item) {
+      accept(item);
+    }
+    if (chosen.length >= limit) {
+      return chosen;
+    }
+  }
+
+  for (const item of items) {
+    if (chosen.length >= limit) {
+      break;
+    }
+    if (item.fishReferenceSlug !== null) {
+      accept(item);
+    }
+  }
+
+  return chosen;
 }

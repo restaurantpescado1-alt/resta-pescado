@@ -48,10 +48,10 @@ export interface ApprovedItem {
  */
 export const APPROVED_CATEGORIES: readonly ApprovedCategory[] = [
   { id: "cat-nos-entrees", nameFr: "Nos Entrées", slug: "entrees" },
-  { id: "cat-soupes", nameFr: "Soupes", slug: "soupes" },
+  { id: "cat-soupes", nameFr: "Nos Soupes", slug: "soupes" },
   { id: "cat-nos-poissons", nameFr: "Nos Poissons", slug: "poissons" },
-  { id: "cat-desserts", nameFr: "Desserts", slug: "desserts" },
-  { id: "cat-boissons", nameFr: "Boissons", slug: "boissons" },
+  { id: "cat-desserts", nameFr: "Nos Desserts", slug: "desserts" },
+  { id: "cat-boissons", nameFr: "Nos Boissons", slug: "boissons" },
 ];
 
 export const APPROVED_MENU: readonly {
@@ -63,17 +63,22 @@ export const APPROVED_MENU: readonly {
     items: [
       { id: "item-salade-aubergines", nameFr: "Salade d’Aubergines", priceDa: 250 },
       { id: "item-salade-tomate", nameFr: "Salade de Tomate", priceDa: 250 },
-      { id: "item-salade-poulpe", nameFr: "Salade de Poulpe", priceDa: 600 },
+      { id: "item-salade-poulpe", nameFr: "Salade de Poulpe", priceDa: 800 },
       { id: "item-salade-pomme-de-terre", nameFr: "Salade de Pomme de Terre", priceDa: 300 },
       { id: "item-hmis", nameFr: "Hmis", priceDa: 300 },
       { id: "item-salade-variee", nameFr: "Salade Variée", priceDa: 150 },
+      // Added in Phase 8 from the owner's updated card. Frites belongs in Nos Entrées,
+      // not a side list, because that is where the owner's card places it.
+      { id: "item-frites", nameFr: "Frites", priceDa: 200 },
+      { id: "item-bourek-crevettes", nameFr: "Bourek Crevettes", priceDa: 200 },
+      { id: "item-bourek-thon", nameFr: "Bourek Thon", priceDa: 150 },
     ],
   },
   {
     categoryId: "cat-soupes",
     items: [
       { id: "item-soupe-de-poissons", nameFr: "Soupe de Poissons", priceDa: 300 },
-      { id: "item-soupe-turque", nameFr: "Soupe Turque", priceDa: 250 },
+      { id: "item-soupe-turque", nameFr: "Soupe Turque", priceDa: 300 },
     ],
   },
   {
@@ -177,21 +182,24 @@ export const APPROVED_MENU: readonly {
   {
     categoryId: "cat-desserts",
     items: [
-      { id: "item-flan-caramel", nameFr: "Flan Caramel", priceDa: 100 },
-      { id: "item-flan-cafe", nameFr: "Flan Café", priceDa: 100 },
+      { id: "item-flan-caramel", nameFr: "Flan Caramel", priceDa: 150 },
+      { id: "item-flan-cafe", nameFr: "Flan Café", priceDa: 150 },
       { id: "item-salade-de-fruits", nameFr: "Salade de Fruits", priceDa: 200 },
     ],
   },
   {
     categoryId: "cat-boissons",
     items: [
-      { id: "item-soda", nameFr: "Soda", priceDa: 50 },
-      { id: "item-jus", nameFr: "Jus", priceDa: 50 },
-      { id: "item-eau-minerale-pm", nameFr: "Eau Minérale PM", priceDa: 50 },
-      { id: "item-canette", nameFr: "Canette", priceDa: 100 },
-      { id: "item-jus-de-citron", nameFr: "Jus de Citron", priceDa: 600 },
-      { id: "item-jus-d-orange", nameFr: "Jus d’Orange", priceDa: 600 },
-      { id: "item-cocktail-de-fruits", nameFr: "Cocktail de Fruits", priceDa: 800 },
+      { id: "item-soda", nameFr: "Soda", priceDa: 100 },
+      { id: "item-jus", nameFr: "Jus", priceDa: 100 },
+      { id: "item-eau-minerale-pm", nameFr: "Eau Minérale PM", priceDa: 100 },
+      { id: "item-canette", nameFr: "Canette", priceDa: 150 },
+      // The 1 L volume is confirmed only for these three juices. It is written into the
+      // name because the schema has no volume column and a separate field would invite
+      // volumes to be invented for drinks the owner never sized.
+      { id: "item-jus-de-citron", nameFr: "Jus de Citron (1 L)", priceDa: 600 },
+      { id: "item-jus-d-orange", nameFr: "Jus d’Orange (1 L)", priceDa: 600 },
+      { id: "item-cocktail-de-fruits", nameFr: "Cocktail de Fruits (1 L)", priceDa: 800 },
     ],
   },
 ];
@@ -208,8 +216,9 @@ export const APPROVED_MENU: readonly {
  *
  * Consequently no badge is rendered on any card. Both "Suggestion du chef" and
  * "Sélection" are endorsements, and neither has been confirmed, so neither appears.
- * The home page instead shows a neutral preview, "Découvrez notre carte", built from
- * the first visible items in manual sort order, with no badge at all.
+ * The home page instead shows a neutral preview, "À découvrir à la carte", built from a
+ * curated, species-diverse set of ids (`HOME_PREVIEW_ITEM_IDS` in `src/lib/public-site.ts`),
+ * with no badge at all.
  *
  * When the owner does choose dishes, they go here or straight into the database via
  * the dashboard; the home page then switches to rendering the confirmed selection.
@@ -220,10 +229,10 @@ export const FEATURED_ITEM_IDS: readonly string[] = [];
  * Number of dishes the neutral home page preview shows.
  *
  * A small fixed number rather than a fraction of the menu, so the preview stays a
- * teaser at 34 items and at 3. Fish dishes are preferred because they carry a
- * reference illustration, which is what makes the preview worth looking at.
+ * teaser at 37 items and at 3. Four fills two rows of two on desktop and keeps the
+ * species-diverse curated selection whole.
  */
-export const HOME_PREVIEW_LIMIT = 6;
+export const HOME_PREVIEW_LIMIT = 4;
 
 /** Flat list of every approved item, in display order. */
 export function allApprovedItems(): ApprovedItem[] {

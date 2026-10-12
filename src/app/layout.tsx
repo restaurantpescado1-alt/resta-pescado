@@ -1,23 +1,57 @@
 import type { Metadata } from "next";
 
+import { InfoStrips } from "@/components/info-strips";
 import { MobileActions } from "@/components/mobile-actions";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { resolveDeploymentMode } from "@/lib/auth-ip";
 import { loadPublicSettings, type PublicSettings } from "@/lib/public-site";
 import { robotsMetadata } from "@/lib/search-indexing";
+import { SITE_ORIGIN } from "@/lib/site-origin";
 
 import "./globals.css";
 
+const SITE_DESCRIPTION =
+  "Poissons et fruits de mer, préparés à Alger depuis 2018. Carte, horaires et commande par téléphone.";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_ORIGIN),
   title: {
-    default: "Resta Pescado — Poissons et fruits de mer",
+    default: "Resta Pescado — Poissons et fruits de mer à Alger",
     template: "%s — Resta Pescado",
   },
-  description: "Poissons et fruits de mer, préparés à Alger.",
-  // Read from the environment when this module loads in the Worker, so the same
-  // build ships `index, follow` to production and `noindex, nofollow` to the
-  // preview host without a second build. Every page renders under this layout.
+  description: SITE_DESCRIPTION,
+  applicationName: "Resta Pescado",
+  icons: {
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
+    apple: [{ url: "/apple-icon.svg", type: "image/svg+xml" }],
+  },
+  openGraph: {
+    type: "website",
+    locale: "fr_DZ",
+    siteName: "Resta Pescado",
+    title: "Resta Pescado — Poissons et fruits de mer à Alger",
+    description: SITE_DESCRIPTION,
+    images: [
+      {
+        url: "/media/hero-aquarium-poster.webp",
+        width: 1920,
+        height: 1080,
+        alt: "Poissons dans un aquarium chez Resta Pescado.",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Resta Pescado — Poissons et fruits de mer à Alger",
+    description: SITE_DESCRIPTION,
+    images: ["/media/hero-aquarium-poster.webp"],
+  },
+  // Relative to `metadataBase` and the current path, so every page canonicals to itself.
+  alternates: { canonical: "./" },
+  // Read from the environment when this module loads in the Worker, so the same build
+  // ships `index, follow` to production and `noindex, nofollow` to the preview host
+  // without a second build. Every page renders under this layout.
   robots: robotsMetadata(resolveDeploymentMode()),
 };
 
@@ -54,6 +88,9 @@ const FALLBACK_SETTINGS: PublicSettings = {
   deliveryMinimumOrderTextFr: null,
   deliveryHoursFr: null,
   pickupTextFr: null,
+  googleReviewUrl: null,
+  facebookUrl: null,
+  instagramUrl: null,
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
@@ -71,15 +108,22 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           Aller au contenu
         </a>
 
+        <InfoStrips />
         <SiteHeader settings={settings} />
 
         {/*
           Padding at the bottom clears the mobile action bar, which is fixed. Without
           this the last line of every page sits underneath it.
+
+          There is deliberately no top padding here. It used to add 32px above every
+          page, which showed as a warm band between the header and the homepage hero —
+          the one section that is meant to start flush against the bar. Each non-home
+          page adds its own `pt-8` instead, so its title keeps its breathing room without
+          pushing the hero down.
         */}
         <main
           id="contenu"
-          className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 pb-24 md:pb-8"
+          className="mx-auto w-full max-w-6xl flex-1 px-4 pb-24 md:pb-8"
         >
           {children}
         </main>

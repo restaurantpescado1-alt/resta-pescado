@@ -29,15 +29,15 @@ describe("approved menu transcription", () => {
   it("has the five approved categories in the owner's order", () => {
     expect(APPROVED_CATEGORIES.map((category) => category.nameFr)).toEqual([
       "Nos Entrées",
-      "Soupes",
+      "Nos Soupes",
       "Nos Poissons",
-      "Desserts",
-      "Boissons",
+      "Nos Desserts",
+      "Nos Boissons",
     ]);
   });
 
-  it("has exactly 34 approved dishes", () => {
-    expect(allApprovedItems()).toHaveLength(34);
+  it("has exactly 37 approved dishes", () => {
+    expect(allApprovedItems()).toHaveLength(37);
   });
 
   it("assigns every dish to a known category", () => {
@@ -70,12 +70,15 @@ describe("approved menu transcription", () => {
     expect(prices).toEqual({
       "Salade d’Aubergines": 250,
       "Salade de Tomate": 250,
-      "Salade de Poulpe": 600,
+      "Salade de Poulpe": 800,
       "Salade de Pomme de Terre": 300,
       Hmis: 300,
       "Salade Variée": 150,
+      Frites: 200,
+      "Bourek Crevettes": 200,
+      "Bourek Thon": 150,
       "Soupe de Poissons": 300,
-      "Soupe Turque": 250,
+      "Soupe Turque": 300,
       "Sardines Friture": 500,
       "Sardines Fritures Garnies": 600,
       "Chtitha Sardines": 600,
@@ -92,16 +95,16 @@ describe("approved menu transcription", () => {
       "Crevettes en Sauce": 1200,
       "Crevettes Grillées": 1500,
       "Plat Varié de Poissons": 2000,
-      "Flan Caramel": 100,
-      "Flan Café": 100,
+      "Flan Caramel": 150,
+      "Flan Café": 150,
       "Salade de Fruits": 200,
-      Soda: 50,
-      Jus: 50,
-      "Eau Minérale PM": 50,
-      Canette: 100,
-      "Jus de Citron": 600,
-      "Jus d’Orange": 600,
-      "Cocktail de Fruits": 800,
+      Soda: 100,
+      Jus: 100,
+      "Eau Minérale PM": 100,
+      Canette: 150,
+      "Jus de Citron (1 L)": 600,
+      "Jus d’Orange (1 L)": 600,
+      "Cocktail de Fruits (1 L)": 800,
     });
   });
 
@@ -110,7 +113,7 @@ describe("approved menu transcription", () => {
     // approved text.
     const names = allApprovedItems().map((item) => item.nameFr);
     expect(names).toContain("Salade d’Aubergines");
-    expect(names).toContain("Jus d’Orange");
+    expect(names).toContain("Jus d’Orange (1 L)");
   });
 });
 

@@ -68,6 +68,54 @@ export function SiteFooter({ settings }: { settings: PublicSettings }) {
             ) : null}
           </div>
         </div>
+
+        {/*
+          Social and review links, rendered only when the owner has saved them. No guessed
+          handles: an unconfirmed profile URL would send a visitor to a stranger's page.
+        */}
+        {settings.facebookUrl || settings.instagramUrl || settings.googleReviewUrl ? (
+          <ul className="mt-6 flex flex-wrap gap-x-5 gap-y-2 border-t border-on-ocean/20 pt-4 text-sm font-semibold">
+            {settings.facebookUrl ? (
+              <li>
+                <a
+                  href={settings.facebookUrl}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="min-h-11 items-center underline underline-offset-4 hover:text-on-ocean"
+                  data-testid="footer-facebook"
+                >
+                  Facebook
+                </a>
+              </li>
+            ) : null}
+            {settings.instagramUrl ? (
+              <li>
+                <a
+                  href={settings.instagramUrl}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="min-h-11 items-center underline underline-offset-4 hover:text-on-ocean"
+                  data-testid="footer-instagram"
+                >
+                  Instagram
+                </a>
+              </li>
+            ) : null}
+            {settings.googleReviewUrl ? (
+              <li>
+                <a
+                  href={settings.googleReviewUrl}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="min-h-11 items-center underline underline-offset-4 hover:text-on-ocean"
+                  data-testid="footer-google-review"
+                >
+                  Avis Google
+                </a>
+              </li>
+            ) : null}
+          </ul>
+        ) : null}
       </div>
     </footer>
   );

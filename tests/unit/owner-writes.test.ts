@@ -620,6 +620,9 @@ describe("owner settings writes", () => {
     deliveryMinimumOrderTextFr: null,
     deliveryHoursFr: null,
     pickupTextFr: "Commande par téléphone.",
+    googleReviewUrl: null,
+    facebookUrl: null,
+    instagramUrl: null,
   };
 
   it("saves every field and keeps an unconfirmed address unconfirmed", async () => {

@@ -48,6 +48,9 @@ export function SettingsForm({ settings }: { settings: SiteSettingsRow }) {
     deliveryMinimumOrderTextFr: settings.deliveryMinimumOrderTextFr ?? "",
     deliveryHoursFr: settings.deliveryHoursFr ?? "",
     pickupTextFr: settings.pickupTextFr ?? "",
+    googleReviewUrl: settings.googleReviewUrl ?? "",
+    facebookUrl: settings.facebookUrl ?? "",
+    instagramUrl: settings.instagramUrl ?? "",
   }));
 
   function set<K extends keyof typeof draft>(field: K, value: (typeof draft)[K]) {
@@ -252,6 +255,51 @@ export function SettingsForm({ settings }: { settings: SiteSettingsRow }) {
             name="pickupTextFr"
             value={draft.pickupTextFr}
             onChange={(event) => set("pickupTextFr", event.target.value)}
+            className={inputClass}
+          />
+        </Field>
+      </ActionGroup>
+
+      <ActionGroup
+        title="Avis et réseaux"
+        description="Les liens publics que vous voulez afficher. Laissez vide et rien ne s'affiche : le site n'invente jamais d'adresse."
+      >
+        <Field
+          label="Lien d'avis Google"
+          htmlFor="googleReviewUrl"
+          hint="Le bouton « Laisser un avis sur Google » n'apparaît que si ce lien est renseigné."
+        >
+          <input
+            id="googleReviewUrl"
+            name="googleReviewUrl"
+            type="url"
+            inputMode="url"
+            value={draft.googleReviewUrl}
+            onChange={(event) => set("googleReviewUrl", event.target.value)}
+            className={inputClass}
+          />
+        </Field>
+
+        <Field label="Page Facebook" htmlFor="facebookUrl">
+          <input
+            id="facebookUrl"
+            name="facebookUrl"
+            type="url"
+            inputMode="url"
+            value={draft.facebookUrl}
+            onChange={(event) => set("facebookUrl", event.target.value)}
+            className={inputClass}
+          />
+        </Field>
+
+        <Field label="Page Instagram" htmlFor="instagramUrl">
+          <input
+            id="instagramUrl"
+            name="instagramUrl"
+            type="url"
+            inputMode="url"
+            value={draft.instagramUrl}
+            onChange={(event) => set("instagramUrl", event.target.value)}
             className={inputClass}
           />
         </Field>

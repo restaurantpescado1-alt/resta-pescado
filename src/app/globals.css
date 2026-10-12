@@ -1,44 +1,41 @@
 @import "tailwindcss";
 
 /**
- * Pescado brand palette, confirmed from the owner's business card and used as a
- * colour and tone reference only. The interface is an original, clean Mediterranean
- * design rather than a copy of the card's crowded seafood collage.
+ * Pescado brand palette.
  *
  * Roles, not just swatches:
  *
- * - Deep Ocean Blue is dominant. It carries the header, the footer, and primary
- *   actions, so the site reads as a fish restaurant at a glance.
- * - Marine, Bright and Wave are a single blue family used for depth and emphasis,
- *   never three competing accents.
- * - Warm White is the page. It is the reason the blues feel Mediterranean rather
+ * - Deep navy carries headings, the header, the footer and the trust section, so the
+ *   site reads as a fish restaurant at a glance.
+ * - Ocean blue is the main active/interface colour: navigation, links, category chips.
+ * - Warm near-white is the page. It is the reason the navy feels Mediterranean rather
  *   than corporate.
- * - Accent Yellow is rationed. It appears on a handful of highlights and nothing
- *   else, because it is the easiest colour here to overuse.
- * - Dark Text is the ink on light backgrounds.
+ * - Cyan is a small accent for rules and highlights, never a text background.
+ * - Yellow is rationed to the single primary action per screen, because it is the
+ *   easiest colour here to overuse.
  *
- * Contrast on the combinations actually used is at least 5.6:1, so text passes WCAG
- * AA on every surface. Wave Cyan and Accent Yellow are deliberately never used as a
- * background for white text: both fall below 3:1 against white and would fail.
+ * Cyan and Yellow are deliberately never used as a background for white text: both fall
+ * below 3:1 against white and would fail WCAG AA. The navy/ocean combinations actually
+ * used hold at least 4.5:1 for body text.
  */
 :root {
-  --rp-ocean-deep: #063f79;
-  --rp-marine: #075c9e;
-  --rp-bright: #079ed0;
-  --rp-wave: #19b8de;
-  --rp-warm: #f8f5ec;
-  --rp-accent: #f2c230;
-  --rp-ink: #132433;
+  --rp-ocean-deep: #082a4a;
+  --rp-marine: #075b94;
+  --rp-bright: #34c5df;
+  --rp-wave: #34c5df;
+  --rp-warm: #fafcff;
+  --rp-accent: #f4c542;
+  --rp-ink: #082a4a;
 
   /**
-   * Ink on the deep blue, rather than pure white. Pure white on a large blue field
-   * is harsh at night and this keeps the same contrast ratio with less glare.
+   * Ink on the deep navy, rather than pure white. Pure white on a large navy field is
+   * harsh at night and this keeps the same contrast ratio with less glare.
    */
-  --rp-on-ocean: #f8f5ec;
+  --rp-on-ocean: #fafcff;
   --rp-on-ocean-soft: #cfe6f2;
 
-  --rp-line: #dcd8cc;
-  --rp-line-strong: #c3bdae;
+  --rp-line: #dbe6f0;
+  --rp-line-strong: #b9cddd;
 
   /* Status colours, kept out of the brand family so they read as warnings. */
   --rp-danger: #a32020;
@@ -66,6 +63,10 @@
     ui-sans-serif, system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   background-color: var(--rp-warm);
   color: var(--rp-ink);
@@ -76,10 +77,9 @@ body {
 /**
  * Visible focus everywhere.
  *
- * The palette's blues are all close together, so focus is signalled with the accent
+ * The navy and ocean blues are close together, so focus is signalled with the accent
  * yellow on dark surfaces and a dark ring on light ones. Removing outlines without
- * replacing them would make the site unusable by keyboard, so this is never turned
- * off.
+ * replacing them would make the site unusable by keyboard, so this is never turned off.
  */
 :where(a, button, input, select, textarea, summary):focus-visible {
   outline: 3px solid var(--rp-accent);
@@ -94,15 +94,15 @@ body {
 /**
  * Subtle wave motif.
  *
- * A restrained two-stop curve used as a section divider and behind the hero. This is
- * the only decorative element: the brief asked for a clean modern interface, so
- * waves are a texture, not a pattern, and they never sit behind body text.
+ * A restrained two-stop curve used as a section divider. This is the only decorative
+ * element: the brief asked for a clean modern interface, so waves are a texture, not a
+ * pattern, and they never sit behind body text.
  */
 .wave-divider {
   background-image: linear-gradient(
     to right,
     var(--rp-wave) 0%,
-    var(--rp-bright) 45%,
+    var(--rp-marine) 50%,
     var(--rp-ocean-deep) 100%
   );
   height: 3px;
@@ -111,49 +111,36 @@ body {
 
 .wave-hero {
   background-image:
-    radial-gradient(120% 90% at 85% 10%, rgba(25, 184, 222, 0.28) 0%, transparent 60%),
-    radial-gradient(90% 70% at 10% 0%, rgba(7, 158, 208, 0.22) 0%, transparent 65%),
+    radial-gradient(120% 90% at 85% 10%, rgba(52, 197, 223, 0.22) 0%, transparent 60%),
     linear-gradient(160deg, var(--rp-ocean-deep) 0%, var(--rp-marine) 100%);
 }
 
 /**
  * The scrim over the hero video.
  *
- * Text contrast is guaranteed against the worst frame the footage can show: a pure
- * white pixel behind the headline. Compositing rgba(6, 63, 121, 0.90) over white gives
- * a luminance of ~0.081, which puts `--rp-on-ocean` (9.6:1 on solid ocean) at ~7.4:1
- * and `--rp-on-ocean-soft` at ~6.2:1 — both above the 5.6:1 the palette holds itself
- * to. So the left of the gradient never drops below 0.90 while text can be there; the
- * right side, which is empty on desktop, opens up so the footage reads through.
+ * The footage is the point of the hero: a visitor should see the fish, not a blue wall.
+ * So the overlay is localised to the bottom band where the copy and the actions sit, and
+ * the upper and central video stays unobscured.
  *
- * Below `md` the copy spans the full width, so the whole scrim stays at (or above)
- * 0.88 — the same guarantee, without a light edge for text to run into.
+ * Text contrast is guaranteed against the worst frame the footage can show: a pure white
+ * pixel behind the headline. Compositing rgba(8, 42, 74, 0.92) over white gives a
+ * luminance below 0.09, which keeps `--rp-on-ocean` above 4.5:1 even on the brightest
+ * frame. The gradient reaches 0 by ~78% height, so nothing above the copy is tinted.
  */
 .hero-scrim {
   background-image: linear-gradient(
-    100deg,
-    rgba(6, 63, 121, 0.94) 0%,
-    rgba(6, 63, 121, 0.9) 52%,
-    rgba(7, 92, 158, 0.62) 78%,
-    rgba(7, 92, 158, 0.42) 100%
+    to top,
+    rgba(8, 42, 74, 0.94) 0%,
+    rgba(8, 42, 74, 0.82) 26%,
+    rgba(8, 42, 74, 0.46) 52%,
+    rgba(8, 42, 74, 0.12) 74%,
+    rgba(8, 42, 74, 0) 100%
   );
 }
 
-@media (max-width: 767px) {
-  .hero-scrim {
-    background-image: linear-gradient(
-      180deg,
-      rgba(6, 63, 121, 0) 0%,
-      rgba(6, 63, 121, 0.6) 40%,
-      rgba(6, 63, 121, 0.85) 70%,
-      rgba(6, 63, 121, 0.92) 100%
-    );
-  }
-}
-
 /**
- * Respects a visitor who has asked the system to reduce motion. The waves and the
- * sticky bar transition are the only animated things on the site.
+ * Respects a visitor who has asked the system to reduce motion. The reveal animation and
+ * the info strip rotation are the only animated things on the site.
  */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -167,8 +154,8 @@ body {
 }
 
 /**
- * Skip link. Visually hidden until focused, which is the only way a keyboard user
- * can get past the header.
+ * Skip link. Visually hidden until focused, which is the only way a keyboard user can
+ * get past the header.
  */
 .skip-link {
   position: absolute;
@@ -186,18 +173,39 @@ body {
   font-weight: 600;
 }
 
+/* Section reveal. Applied by the `Reveal` component to below-the-fold sections only.
+   The base state is visible, so a visitor without JavaScript still sees the content; the
+   class the observer adds is what animates it in. `both` fill holds the starting frame
+   through the stagger delay so the section does not flash before it animates. */
+@keyframes reveal-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 
+.reveal {
+  animation: reveal-up 480ms ease-out both;
+}
 
+.reveal-delay-1 {
+  animation-delay: 60ms;
+}
 
+.reveal-delay-2 {
+  animation-delay: 120ms;
+}
 
-
-
-
-
-
-
-@keyframes reveal-up{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
-.reveal{opacity:0;transform:translateY(16px);animation:reveal-up 420ms ease-out forwards}
-.reveal-delay-1{animation-delay:60ms}
-.reveal-delay-2{animation-delay:120ms}
-@media(prefers-reduced-motion:reduce){.reveal,.reveal-delay-1,.reveal-delay-2{animation:none;opacity:1;transform:none}}
+@media (prefers-reduced-motion: reduce) {
+  .reveal,
+  .reveal-delay-1,
+  .reveal-delay-2 {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}

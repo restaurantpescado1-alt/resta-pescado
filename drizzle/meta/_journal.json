@@ -29,6 +29,13 @@
       "when": 1791373846317,
       "tag": "0003_dizzy_yellow_claw",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1791796919092,
+      "tag": "0004_yielding_stellaris",
+      "breakpoints": true
     }
   ]
 }

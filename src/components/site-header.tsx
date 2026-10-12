@@ -8,12 +8,15 @@ import { telHref } from "@/lib/public-site";
  * Site header.
  *
  * Sticky, so the phone number stays reachable while a visitor reads the menu, which
- * matters on a restaurant site where the menu's only call to action is a phone call.
+ * matters on a restaurant site where the menu's only call to action is a phone call. The
+ * two information strips above it are deliberately not sticky: only the navigation is
+ * pinned.
  *
- * One row at every width. Below `md` the links collapse into `MobileNav`, a disclosure,
- * which keeps the identity, the phone number, and the menu button on a single 390px line.
- * At `md` and up the full list is shown and the button is hidden, so the two navigations
- * never coexist and a screen reader never meets the same landmark twice.
+ * One row at every width. Below `md` the order is menu button, wordmark, phone — the
+ * three things a phone visitor needs, with the name centred between two touch targets.
+ * The links collapse into `MobileNav`, a disclosure, and its panel wraps onto its own
+ * full-width row. At `md` and up the full list is shown and the button is hidden, so the
+ * two navigations never coexist and a screen reader never meets the same landmark twice.
  */
 const NAV_LINKS = [
   { href: "/", label: "Accueil" },
@@ -26,15 +29,10 @@ const NAV_LINKS = [
 export function SiteHeader({ settings }: { settings: PublicSettings }) {
   return (
     <header className="sticky top-0 z-40 bg-ocean text-on-ocean shadow-sm">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-1 px-3 py-2 sm:gap-3 sm:px-4 sm:py-3">
-        {/*
-          `shrink-0` on the identity and the button, and `truncate` on neither: the name
-          is short enough at 390px beside a 13px phone number, and truncating the
-          restaurant's name would be the wrong thing to save space.
-        */}
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-2 gap-y-0 px-3 py-1.5 sm:px-4 sm:py-2">
         <Link
           href="/"
-          className="shrink-0 flex-1 text-center text-base font-bold tracking-tight focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent sm:text-lg"
+          className="order-2 flex-1 text-center text-base font-bold tracking-tight focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent sm:text-lg md:order-none md:flex-none md:text-left"
           aria-label="Resta Pescado, accueil"
         >
           Resta&nbsp;Pescado
@@ -44,7 +42,7 @@ export function SiteHeader({ settings }: { settings: PublicSettings }) {
         <nav
           aria-label="Navigation principale"
           data-testid="desktop-nav"
-          className="ml-auto hidden md:block"
+          className="order-3 ml-auto hidden md:order-none md:block"
         >
           <ul className="flex items-center gap-1">
             {NAV_LINKS.map((link) => (
@@ -61,20 +59,21 @@ export function SiteHeader({ settings }: { settings: PublicSettings }) {
         </nav>
 
         {/*
-          The phone action stays visible at every width. It shrinks to 13px below `sm`
+          The phone action stays visible at every width. It shrinks to 12px below `sm`
           rather than becoming an icon, because a recognisable number is more useful than
           a symbol and the widest layout still fits on one line with the menu button.
         */}
-      <MobileNav links={NAV_LINKS} />
         {settings.phoneFr ? (
           <a
             href={telHref(settings.phoneFr)}
-            className="order-3 inline-flex min-h-11 shrink-0 items-center rounded-full bg-accent px-2 text-[12px] font-bold text-ink transition-transform hover:scale-[1.02] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on-ocean sm:px-4 sm:text-sm md:order-none md:ml-0"
+            className="order-4 inline-flex min-h-11 shrink-0 items-center rounded-full bg-accent px-2.5 text-[12px] font-bold text-ink transition-transform hover:scale-[1.02] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on-ocean sm:px-4 sm:text-sm md:order-none"
             data-testid="header-phone"
           >
             {settings.phoneFr}
           </a>
         ) : null}
+
+        <MobileNav links={NAV_LINKS} />
       </div>
     </header>
   );

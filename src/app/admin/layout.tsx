@@ -13,5 +13,7 @@ export const metadata: Metadata = {
  * otherwise, and every admin page fails with a 500.
  */
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  return children;
+  // The public layout no longer supplies top padding (the homepage hero starts flush),
+  // so the admin area restores its own here.
+  return <div className="pt-8">{children}</div>;
 }

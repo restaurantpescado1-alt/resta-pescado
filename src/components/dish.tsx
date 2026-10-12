@@ -27,42 +27,54 @@ export function DishCard({ item }: { item: MenuItemRow }) {
   const fish = item.fishReferenceSlug ? getFishReferenceImage(item.fishReferenceSlug) : undefined;
   const photo = item.imageKey ? mediaUrl(item.imageKey) : null;
 
+  /*
+   * Image box: one deliberate size at each breakpoint rather than a size the browser
+   * negotiates. Narrow phones get a small tile so the *name* still has room; from 400px
+   * it grows once, and desktop settles on the wider 4:3 box.
+   */
+  const imageBox = "h-24 w-32 shrink-0 min-[400px]:h-28 min-[400px]:w-36 md:h-36 md:w-48";
+
   return (
-    <li
-      className={`flex gap-4 border-b border-line py-4 last:border-b-0 ${photo || fish ? "" : "pl-0"}`}
-      data-item-id={item.id}
-    >
+    <li className="flex gap-3 border-b border-line py-4 last:border-b-0 sm:gap-4" data-item-id={item.id}>
       {photo ? (
         <SafeImage
           src={photo}
           alt={item.nameFr}
-          width={96}
-          height={96}
+          width={192}
+          height={144}
           loading="lazy"
-          className="h-24 w-24 shrink-0 rounded-lg border border-line object-cover"
-          fallbackClassName="h-24 w-24 shrink-0 text-[0.7rem]"
+          className={`${imageBox} rounded-lg border border-line object-cover`}
+          fallbackClassName={`${imageBox} text-[0.7rem]`}
         />
       ) : fish ? (
-        <figure className="h-24 w-32 shrink-0">
+        <figure className={imageBox}>
           <SafeImage
             src={fish.src}
             alt={fish.altFr}
             width={fish.width}
             height={fish.height}
             loading="lazy"
-            // `contain` on the shell colour: a 4:3 illustration of a whole fish inside a
-            // 96x128 box would lose its head or tail to a crop, and the shape of the fish
-            // is the entire point of the picture.
-            className="h-24 w-32 rounded-lg border border-line bg-warm object-contain"
-            fallbackClassName="h-24 w-32 text-[0.65rem]"
+            // `contain` on the shell colour: a 4:3 illustration of a whole fish inside the
+            // larger row box would lose its head or tail to a crop, and the shape of the
+            // fish is the entire point of the picture.
+            className="h-full w-full rounded-lg border border-line bg-warm object-contain"
+            fallbackClassName="h-full w-full text-[0.65rem]"
           />
         </figure>
       ) : null}
 
       <div className="min-w-0 flex-1">
-        <div className="flex items-baseline justify-between gap-3">
-          <h3 className="font-semibold">{item.nameFr}</h3>
-          <p className="whitespace-nowrap font-semibold text-marine" data-testid="dish-price">
+        {/*
+          On a phone the name sits on its own line with the price directly beneath it, so
+          neither column has to stretch to the right edge and long names are not squeezed
+          against a floating price. From `md` the two sit on one baseline-aligned row.
+        */}
+        <div className="flex flex-col md:flex-row md:flex-wrap md:items-baseline md:justify-between md:gap-x-3">
+          <h3 className="text-base font-semibold sm:text-lg">{item.nameFr}</h3>
+          <p
+            className="mt-1.5 whitespace-nowrap text-base font-semibold text-marine sm:text-lg md:mt-0"
+            data-testid="dish-price"
+          >
             {formatPrice(item.priceDa)}
           </p>
         </div>

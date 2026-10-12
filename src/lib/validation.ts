@@ -310,6 +310,9 @@ export const siteSettingsInputSchema = z.object({
   deliveryMinimumOrderTextFr: optionalLine(MAX_SHORT_TEXT, "La commande minimum"),
   deliveryHoursFr: optionalLine(MAX_SHORT_TEXT, "Les heures de livraison"),
   pickupTextFr: optionalLine(MAX_SHORT_TEXT, "La commande"),
+  googleReviewUrl: ownerUrl("Le lien d'avis Google"),
+  facebookUrl: ownerUrl("Le lien Facebook"),
+  instagramUrl: ownerUrl("Le lien Instagram"),
 });
 
 export type SiteSettingsInput = z.infer<typeof siteSettingsInputSchema>;

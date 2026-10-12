@@ -14,7 +14,7 @@ export const SEEDED_CATEGORY_NAME = "Nos Poissons";
  * A dish from the owner-approved menu that carries a fish reference illustration.
  *
  * `Dorade` rather than the old placeholder dish: the seeded menu is now the real
- * 34-item card, and this one has both a confirmed price and a generated illustration,
+ * 37-item card, and this one has both a confirmed price and a generated illustration,
  * which is what the public and admin assertions need.
  */
 export const SEEDED_ITEM_ID = "item-dorade";

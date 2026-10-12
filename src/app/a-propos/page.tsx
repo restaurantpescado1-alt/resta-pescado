@@ -52,7 +52,7 @@ export default async function AboutPage() {
   const fish = listFishReferenceImages();
 
   return (
-    <div data-testid="about">
+    <div className="pt-8" data-testid="about">
       <header className="pb-2">
         <h1 className="text-3xl font-bold tracking-tight">À propos</h1>
       </header>
@@ -107,7 +107,7 @@ export default async function AboutPage() {
 
         {/* Stated once for the whole guide rather than under all eleven illustrations. */}
         <p
-          className="mt-4 max-w-prose rounded-xl border border-line bg-warm/60 px-4 py-3 text-sm leading-snug text-ink/75"
+          className="mt-3 max-w-prose text-[13px] leading-snug text-ink/70"
           data-testid="fish-reference-explanation"
         >
           {FISH_REFERENCE_EXPLANATION}

@@ -78,7 +78,7 @@ export default async function GalleryPage() {
   }
 
   return (
-    <div data-testid="gallery">
+    <div className="pt-8" data-testid="gallery">
       <header className="pb-2">
         <h1 className="text-3xl font-bold tracking-tight">Galerie</h1>
         {/*

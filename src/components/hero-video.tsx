@@ -171,7 +171,7 @@ export function HeroVideo({
           src={src ?? undefined}
           onError={() => setFailed(true)}
         />
-        <div className="hero-scrim absolute inset-0 bg-gradient-to-t from-ocean/40 via-ocean/15 to-ocean/10" />
+        <div className="hero-scrim absolute inset-0" />
       </div>
 
       {/*
@@ -184,7 +184,7 @@ export function HeroVideo({
           type="button"
           data-testid="hero-video-toggle"
           onClick={() => { const v = videoRef.current; if (v) { v.muted = true; void v.play().catch(()=>{}); } setUserPaused(p => !p); }}
-          className="absolute bottom-4 right-4 z-20 rounded-full border border-on-ocean/50 bg-ocean/90 px-4 py-2 text-xs font-semibold text-on-ocean transition-colors hover:bg-ocean"
+          className="absolute right-3 top-3 z-20 rounded-full border border-on-ocean/50 bg-ocean/90 px-4 py-2 text-xs font-semibold text-on-ocean transition-colors hover:bg-ocean"
         >
           {heroToggleLabel(playing)}
         </button>

@@ -109,7 +109,7 @@ describe("hero media configuration", () => {
   it("commits the three files the policy refers to", () => {
     expect(BUNDLED_HERO_MEDIA).toEqual({
       desktopSrc: "/media/hero-aquarium-1080.mp4",
-      mobileSrc: "/media/hero-aquarium-480.mp4",
+      mobileSrc: "/media/hero-aquarium-720-v3.mp4",
       posterSrc: "/media/hero-aquarium-poster.webp",
     });
   });

@@ -31,10 +31,32 @@ interface OverflowResult {
   offenders: string[];
 }
 
+/**
+ * True when the element is clipped by a horizontally scrollable ancestor.
+ *
+ * A deliberate horizontal scroller (the menu's category chips) pushes its children
+ * past the right edge on a phone by design, and the page itself still does not
+ * scroll sideways. Those children are not evidence of overflow, so they are skipped.
+ *
+ * Defined inside `overflowingElements` because `page.evaluate` serialises only the
+ * one function it is handed: a sibling helper would be `undefined` in the browser.
+ */
 function overflowingElements(): OverflowResult {
   const doc = document.documentElement;
   const offenders: string[] = [];
   const all = document.body.querySelectorAll<HTMLElement>("*");
+
+  const clippedByScroller = (element: HTMLElement): boolean => {
+    let node = element.parentElement;
+    while (node && node !== document.body) {
+      const style = getComputedStyle(node);
+      if (["auto", "scroll", "hidden", "clip"].includes(style.overflowX)) {
+        return true;
+      }
+      node = node.parentElement;
+    }
+    return false;
+  };
 
   for (const element of Array.from(all)) {
     const rect = element.getBoundingClientRect();
@@ -49,6 +71,11 @@ function overflowingElements(): OverflowResult {
 
     // The off-screen skip link lies entirely left of the viewport.
     if (rect.right < 0) {
+      continue;
+    }
+
+    // Children of an intentional horizontal scroller are clipped by it, not by the page.
+    if (clippedByScroller(element)) {
       continue;
     }
 
@@ -228,7 +255,7 @@ test.describe("layout", () => {
   });
 
   test("the confirmed palette is actually in the served stylesheet", async ({ page }) => {
-    const palette = ["#063f79", "#075c9e", "#079ed0", "#19b8de", "#f8f5ec", "#f2c230", "#132433"];
+    const palette = ["#082a4a", "#075b94", "#34c5df", "#fafcff", "#f4c542"];
 
     await page.goto("/", { waitUntil: "networkidle" });
 

@@ -344,6 +344,15 @@ export const siteSettings = sqliteTable(
     /** How to order, including the phone number or ordering channel. */
     pickupTextFr: text("pickup_text_fr"),
 
+    /**
+     * Links the owner has chosen to publish. Each is null until confirmed, and the UI
+     * renders nothing for a null rather than guessing a profile URL: an invented handle
+     * would send a visitor to someone else's page.
+     */
+    googleReviewUrl: text("google_review_url"),
+    facebookUrl: text("facebook_url"),
+    instagramUrl: text("instagram_url"),
+
     ...timestamps,
     ...revision,
   },

@@ -25,7 +25,7 @@ export interface HeroMediaSource {
 /** The committed files under `public/media/`. See `docs/HERO_VIDEO.md`. */
 export const BUNDLED_HERO_MEDIA: HeroMediaSource = Object.freeze({
   desktopSrc: "/media/hero-aquarium-1080.mp4",
-  mobileSrc: "/media/hero-aquarium-480.mp4",
+  mobileSrc: "/media/hero-aquarium-720-v3.mp4",
   posterSrc: "/media/hero-aquarium-poster.webp",
 });
 
