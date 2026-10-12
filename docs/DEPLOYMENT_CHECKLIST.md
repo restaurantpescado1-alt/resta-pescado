@@ -69,7 +69,7 @@ neither has a default environment, and neither runs anything without an explicit
 
 | Script | Writes | If the data already exists |
 | --- | --- | --- |
-| `npm run db:seed:remote -- --env preview\|production` | 5 categories, 34 dishes, the site settings, the gallery manifest — every statement `INSERT … ON CONFLICT DO NOTHING` | Nothing changes: rows the owner has renamed, repriced or hidden survive, and rows the owner added are never touched, because there is no `UPDATE` and no `DELETE` in the file at all |
+| `npm run db:seed:remote -- --env preview\|production` | 37 menu items: 30 food items and 7 drinks, across 5 categories (9/2/16/3/7), the site settings, the gallery manifest — every statement `INSERT … ON CONFLICT DO NOTHING` | Nothing changes: rows the owner has renamed, repriced or hidden survive, and rows the owner added are never touched, because there is no `UPDATE` and no `DELETE` in the file at all |
 | `npm run db:provision:owner -- --env preview\|production` | One owner account, password hashed with Better Auth's `hashPassword` | Refuses before writing anything if any `user` row exists, and lists the addresses it found; the SQL has no conflict clause either, so a row appearing in between makes the import fail rather than create a second account |
 
 Read the printed SQL before adding `--apply`. The two scripts leave different things behind,

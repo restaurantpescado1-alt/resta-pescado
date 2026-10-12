@@ -13,7 +13,8 @@ La mention « Remise à l'état » indique comment annuler ce que le test a modi
 
 - [ ] L'aperçu est déployé sur Cloudflare et l'URL commence par `https://`.
 - [ ] `npm run db:seed:remote -- --env preview --apply` a créé la carte approuvée
-      (34 plats, 5 catégories), les informations confirmées et les zones de livraison.
+      (37 plats : 30 aliments et 7 boissons, répartis en 5 catégories — 9/2/16/3/7), les
+      informations confirmées et les zones de livraison.
 - [ ] `npm run db:provision:owner -- --env preview --apply` a créé le compte propriétaire.
 - [ ] La vérification automatique passe : `npm run smoke:preview -- --url <URL de l'aperçu>` → toutes les cases `PASS`.
 - [ ] Vous disposez de l'adresse e-mail et du mot de passe du propriétaire (jamais écrits

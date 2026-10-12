@@ -24,7 +24,8 @@ import {
  * access to the database or any knowledge of the owner's credentials:
  *
  * - the five public pages respond and carry the confirmed facts (phone, hours, map, the
- *   four delivery sentences, the 34 approved dishes in their 5 categories);
+ *   four delivery sentences, the 37 menu items: 30 food items and 7 drinks, across 5
+ *   categories (9/2/16/3/7));
  * - the pages make no unsupported claim and are served with preview `noindex`;
  * - the signed-out admin is protected; every image actually decodes; nothing overflows
  *   a 390px screen; and the run produces no console errors or failed requests.
