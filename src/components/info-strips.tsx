@@ -60,7 +60,7 @@ export function InfoStrips() {
         className="bg-ocean text-center text-[0.72rem] font-medium tracking-wide text-on-ocean-soft"
         data-testid="info-strip-brand"
       >
-        <p className="mx-auto max-w-6xl px-4 py-1.5">
+        <p className="mx-auto max-w-7xl px-4 py-1.5">
           Depuis 2018 <span aria-hidden="true">•</span> Restaurant de poissons et fruits
           de mer
         </p>
@@ -70,7 +70,7 @@ export function InfoStrips() {
         className="bg-marine text-on-ocean"
         data-testid="info-strip-benefits"
       >
-        <div className="mx-auto flex max-w-6xl items-center justify-center gap-3 px-4 py-1.5">
+        <div className="mx-auto flex max-w-7xl items-center justify-center gap-3 px-4 py-1.5">
           <p className="text-center text-[0.78rem] font-semibold">{message}</p>
           {reducedMotion ? null : (
             <button

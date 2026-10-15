@@ -19,7 +19,7 @@ function StarRating({ rating, max }: { rating: number; max: number }) {
 
   return (
     <span
-      className="relative inline-block whitespace-nowrap text-xl leading-none"
+      className="relative inline-block whitespace-nowrap text-xl leading-tight"
       role="img"
       aria-label={`Note de ${rating.toFixed(1).replace(".", ",")} sur ${max}`}
     >

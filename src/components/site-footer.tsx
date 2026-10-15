@@ -16,7 +16,7 @@ import { telHref, type PublicSettings } from "@/lib/public-site";
 export function SiteFooter({ settings }: { settings: PublicSettings }) {
   return (
     <footer className="mt-auto bg-ocean text-on-ocean">
-      <div className="mx-auto max-w-6xl px-4 py-8">
+      <div className="mx-auto max-w-7xl px-4 py-8">
         <div className="grid gap-6 sm:grid-cols-3">
           <div className="flex items-center gap-3">
             {/*

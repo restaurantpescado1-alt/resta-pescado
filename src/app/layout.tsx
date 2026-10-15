@@ -125,7 +125,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         */}
         <main
           id="contenu"
-          className="mx-auto w-full max-w-6xl flex-1 px-4 pb-24 md:pb-8"
+          className="mx-auto w-full max-w-7xl flex-1 px-4 pb-24 md:pb-8"
         >
           {children}
         </main>

@@ -4,6 +4,7 @@ import { CategoryIcon } from "@/components/category-icon";
 import { DishCard } from "@/components/dish";
 import { GoogleReviews } from "@/components/google-reviews";
 import { HeroVideo } from "@/components/hero-video";
+import { ChildChairIcon, PhoneIcon } from "@/components/icons";
 import { Reveal } from "@/components/reveal";
 import { SafeImage } from "@/components/safe-image";
 import { ServiceUnavailable } from "@/components/service-unavailable";
@@ -25,6 +26,12 @@ import { SITE_ORIGIN } from "@/lib/site-origin";
 import { restaurantJsonLd } from "@/lib/structured-data";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * The desktop family section's reservation action dials the confirmed number in
+ * international form, matching the header's call action.
+ */
+const CALL_HREF = "tel:+213540559967";
 
 /**
  * How many dishes the neutral preview shows. A teaser, not the menu: the whole card is
@@ -137,7 +144,7 @@ export default async function HomePage() {
           posterSrc={heroMedia.posterSrc}
         />
 
-        <div className="relative z-10 mx-auto w-full max-w-6xl">
+        <div className="relative z-10 mx-auto w-full max-w-7xl">
           <div className="max-w-2xl">
             <h1 className="text-3xl font-bold tracking-tight sm:text-5xl">
               {settings?.heroTitleFr ?? "Le goût de la mer, à Alger."}
@@ -276,40 +283,12 @@ export default async function HomePage() {
       </section>
 
       {/*
-        Family section. `family_note_fr` is the owner's own sentence about the high chair,
-        printed as written. The dining-room photograph lives here because this is the
-        section about visiting in person.
+        Trust / review section, moved up so the owner's Google snapshot follows the menu
+        teaser. It renders the owner's fixed snapshot (rating, count, two chosen excerpts)
+        and links to the owner's fiche. See `src/lib/google-reviews.ts` for why the button
+        says "Voir notre fiche Google" rather than promising a review form.
       */}
-      {settings?.familyNoteFr ? (
-        <section
-          className="mt-10 rounded-2xl bg-marine px-6 py-8 text-on-ocean sm:px-8 md:mt-16"
-          aria-labelledby="famille-titre"
-        >
-          <Reveal>
-            <div className="grid gap-6 sm:grid-cols-2 sm:items-center">
-              <div>
-                <h2 id="famille-titre" className="text-xl font-bold">
-                  En famille
-                </h2>
-                <p className="mt-2 max-w-prose text-on-ocean-soft">{settings.familyNoteFr}</p>
-              </div>
-              {DINING_ROOM_IMAGE ? (
-                <figure className="overflow-hidden rounded-xl border border-on-ocean/25 bg-warm">
-                  <SafeImage
-                    src={bundledGalleryUrl(DINING_ROOM_IMAGE.webpFile)}
-                    alt="Photographie de la salle du restaurant Resta Pescado."
-                    width={DINING_ROOM_IMAGE.width}
-                    height={DINING_ROOM_IMAGE.height}
-                    loading="lazy"
-                    className="aspect-[4/3] w-full object-contain"
-                    fallbackClassName="aspect-[4/3] w-full rounded-none border-0"
-                  />
-                </figure>
-              ) : null}
-            </div>
-          </Reveal>
-        </section>
-      ) : null}
+      <GoogleReviews href={settings?.googleReviewUrl ?? GOOGLE_REVIEW_DESTINATION} />
 
       {/*
         Gallery preview. A short look at the room and the counter, with the full set one
@@ -396,12 +375,75 @@ export default async function HomePage() {
       </section>
 
       {/*
-        Trust / review section. Renders the owner's Google snapshot (rating, count, two
-        chosen excerpts) and links to the owner's fiche. See `src/lib/google-reviews.ts`
-        for why the button says "Voir notre fiche Google" rather than promising a review
-        form.
+        Family section, moved down so it closes the narrative after the fish guide. It
+        carries the owner's own sentence about the high chair and the dining-room
+        photograph, because this is the section about visiting in person.
+
+        Below `lg` the presentation is unchanged: the same navy card with the same
+        two-column stack. Only its position on the page has moved. From `lg` up it becomes
+        an editorial two-column band — photograph left, text right — on the warm page
+        background, with the confirmed high-chair fact called out and a phone reservation
+        action.
       */}
-      <GoogleReviews href={settings?.googleReviewUrl ?? GOOGLE_REVIEW_DESTINATION} />
+      {settings?.familyNoteFr ? (
+        <section
+          className="mt-10 rounded-2xl bg-marine px-6 py-8 text-on-ocean sm:px-8 md:mt-16 lg:border lg:border-line lg:bg-warm lg:px-10 lg:py-12 lg:text-ink"
+          aria-labelledby="famille-titre"
+          data-testid="family"
+        >
+          <Reveal>
+            {/*
+              One reflowing grid rather than two copies of the section: the photograph is
+              second on phones and tablets and first on desktop, and the owner's sentence
+              is rendered once so it is only restyled at `lg`, never duplicated in the DOM.
+            */}
+            <div className="grid gap-6 sm:grid-cols-2 sm:items-center lg:grid-cols-[3fr_2fr] lg:gap-10">
+              {DINING_ROOM_IMAGE ? (
+                <figure className="order-2 overflow-hidden rounded-xl border border-on-ocean/25 bg-warm lg:order-1 lg:rounded-2xl lg:border-line">
+                  <SafeImage
+                    src={bundledGalleryUrl(DINING_ROOM_IMAGE.webpFile)}
+                    alt="Photographie de la salle du restaurant Resta Pescado."
+                    width={DINING_ROOM_IMAGE.width}
+                    height={DINING_ROOM_IMAGE.height}
+                    loading="lazy"
+                    className="aspect-[4/3] w-full object-contain lg:object-cover"
+                    fallbackClassName="aspect-[4/3] w-full rounded-none border-0"
+                  />
+                </figure>
+              ) : null}
+
+              <div className="order-1 lg:order-2">
+                <p className="hidden text-sm font-semibold uppercase tracking-[0.2em] text-marine lg:block">
+                  En famille
+                </p>
+                <h2 id="famille-titre" className="text-xl font-bold lg:hidden">
+                  En famille
+                </h2>
+                <h2 className="mt-2 hidden text-3xl font-bold tracking-tight lg:block">
+                  Un moment à partager en famille
+                </h2>
+                <p className="mt-2 max-w-prose text-on-ocean-soft lg:mt-4 lg:text-ink/75">
+                  {settings.familyNoteFr}
+                </p>
+                <p className="mt-4 hidden items-center gap-2 rounded-full border border-marine/25 bg-white px-3 py-1.5 text-sm font-semibold text-marine lg:inline-flex">
+                  <ChildChairIcon />
+                  Chaise haute à disposition
+                </p>
+                <div className="mt-6 hidden lg:block">
+                  <a
+                    href={CALL_HREF}
+                    data-testid="family-call"
+                    className="inline-flex min-h-12 items-center gap-2 rounded-full bg-accent px-6 text-sm font-bold text-ink transition-transform hover:scale-[1.02] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+                  >
+                    <PhoneIcon />
+                    Réserver par téléphone
+                  </a>
+                </div>
+              </div>
+            </div>
+          </Reveal>
+        </section>
+      ) : null}
 
       {/*
         Practical facts, all owner-confirmed. The address is omitted entirely because it

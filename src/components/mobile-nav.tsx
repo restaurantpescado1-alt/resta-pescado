@@ -40,9 +40,12 @@ export interface NavLink {
  * opening a menu with the keyboard expects. Trapping focus in a navigation list this
  * short would cost more than it solved.
  *
- * The desktop navigation is a separate, CSS-only list in `site-header.tsx`. This component
- * is `md:hidden`, so the two never render at the same width and there is no duplicated
- * landmark for a screen reader to announce twice.
+ * The tablet navigation is a separate, CSS-only list in `site-header.tsx`, shown only
+ * between `md` and `lg`. This disclosure is hidden at `md` so the two never render at the
+ * same width and there is no duplicated landmark for a screen reader to announce twice. It
+ * comes back at `lg`, where the header becomes a three-column grid and this control is the
+ * left-hand menu. Its `contents` wrapper lets the button become a direct grid item (and a
+ * direct flex item below `lg`) while the absolutely positioned panel stays out of flow.
  */
 export function MobileNav({ links }: { links: readonly NavLink[] }) {
   const [open, setOpen] = useState(false);
@@ -96,11 +99,12 @@ export function MobileNav({ links }: { links: readonly NavLink[] }) {
 
   return (
     /*
-      `contents` makes this wrapper disappear from the header's flex layout so the button
-      keeps its place in the row; `md:hidden` still removes the whole control above the
-      breakpoint, where the desktop list takes over.
+      `contents` makes this wrapper disappear from the header's flex layout below `lg` (and
+      from its grid from `lg`) so the button keeps its own place; `md:hidden` removes the
+      whole control at the tablet width where the inline list takes over, and `lg:contents`
+      brings it back as the desktop menu.
     */
-    <span ref={containerRef} className="contents md:hidden">
+    <span ref={containerRef} className="contents md:hidden lg:contents">
       <button
         ref={toggleRef}
         type="button"
@@ -108,7 +112,7 @@ export function MobileNav({ links }: { links: readonly NavLink[] }) {
         aria-controls="primary-mobile-nav"
         onClick={() => setOpen((value) => !value)}
         data-testid="mobile-nav-toggle"
-        className="order-1 inline-flex min-h-11 items-center gap-2 rounded-md px-2 text-sm font-semibold text-on-ocean transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        className="order-1 inline-flex min-h-11 items-center gap-2 rounded-md px-2 text-sm font-semibold text-on-ocean transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent lg:col-start-1 lg:row-start-1 lg:justify-self-start"
       >
         <span aria-hidden="true" className="flex h-4 w-4 items-center justify-center">
           {open ? (
@@ -139,7 +143,7 @@ export function MobileNav({ links }: { links: readonly NavLink[] }) {
         data-testid="mobile-nav"
         className="absolute inset-x-0 top-full z-50 max-h-[calc(100dvh-3.5rem)] overflow-y-auto border-t border-white/15 bg-ocean pb-[env(safe-area-inset-bottom)] shadow-lg"
       >
-        <ul className="mx-auto flex max-w-6xl flex-col px-4 py-3">
+        <ul className="mx-auto flex max-w-7xl flex-col px-4 py-3">
           {links.map((link) => {
             const current = pathname === link.href;
             return (

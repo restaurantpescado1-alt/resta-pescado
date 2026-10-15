@@ -393,6 +393,28 @@ test.describe("owner-supplied content", () => {
     await expect(section.getByTestId("google-review")).toHaveAttribute("href", /maps\.app\.goo\.gl/);
   });
 
+  test("the reviews section leads the body and the family section closes it", async ({ page }) => {
+    await page.goto("/");
+
+    const top = (selector: string) =>
+      page.evaluate((sel) => {
+        const element = document.querySelector(sel);
+        return element ? element.getBoundingClientRect().top + window.scrollY : Number.NaN;
+      }, selector);
+
+    const preview = await top('[data-testid="preview-title"]');
+    const reviews = await top('[data-testid="google-reviews"]');
+    const gallery = await top("#galerie-apercu-titre");
+    const fish = await top("#poissons-titre");
+    const family = await top('[data-testid="family"]');
+
+    // The owner's Google snapshot now follows the menu teaser...
+    expect(preview).toBeLessThan(reviews);
+    expect(reviews).toBeLessThan(gallery);
+    // ...and the family band, with the high-chair fact, now closes the page after the guide.
+    expect(fish).toBeLessThan(family);
+  });
+
   test("category tiles show the owner's covers for soups, desserts and drinks", async ({ page }) => {
     await page.goto("/");
 

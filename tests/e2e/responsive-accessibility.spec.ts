@@ -167,16 +167,37 @@ test.describe("responsive layout", () => {
     await expect(page.getByTestId("mobile-nav")).toBeHidden();
   });
 
-  test("the desktop navigation replaces the button above the breakpoint", async ({ page }) => {
+  test("the header centres the logo and offers the menu and the two actions at desktop width", async ({ page }) => {
     await page.goto("/");
     await page.setViewportSize({ width: 1280, height: 900 });
 
-    await expect(page.getByTestId("mobile-nav-toggle")).toBeHidden();
+    /*
+     * Below `lg` the inline list is the navigation; from `lg` up the header collapses it
+     * into the same accessible disclosure the phone uses, so the logo can be centred on
+     * the page instead of being nudged off centre by a variable-width link row.
+     */
+    await expect(page.getByTestId("desktop-nav")).toBeHidden();
+    const toggle = page.getByTestId("mobile-nav-toggle");
+    await expect(toggle).toBeVisible();
     await expect(page.getByTestId("mobile-nav")).toBeHidden();
 
-    const nav = page.getByTestId("desktop-nav");
-    await expect(nav).toBeVisible();
-    await expect(nav.getByRole("link", { name: "Contact" })).toBeVisible();
+    // The identity is centred on the page, not merely centred in the space left over.
+    const logo = page.getByTestId("header-logo");
+    await expect(logo).toBeVisible();
+    const box = (await logo.boundingBox())!;
+    const pageCentre = await page.evaluate(() => document.documentElement.clientWidth / 2);
+    expect(Math.abs(box.x + box.width / 2 - pageCentre)).toBeLessThanOrEqual(2);
+
+    // Call dials the confirmed number in international form; directions is the confirmed map.
+    await expect(page.getByTestId("header-call")).toHaveAttribute("href", "tel:+213540559967");
+    await expect(page.getByTestId("header-directions")).toHaveAttribute("href", CONFIRMED_MAP_URL);
+
+    // Opening the menu reveals the destinations and leaves the logo in place.
+    await toggle.click();
+    const panel = page.getByTestId("mobile-nav");
+    await expect(panel).toBeVisible();
+    await expect(panel.getByRole("link", { name: "Contact" })).toBeVisible();
+    await expect(logo).toBeVisible();
   });
 
   test("the fish guide is usable on a phone", async ({ page }) => {
@@ -227,12 +248,13 @@ test.describe("accessibility", () => {
     await page.goto("/");
 
     /*
-     * At desktop width, where the primary navigation is the visible list. Below `md` the
-     * links live behind the disclosure instead, which has its own traversal test above.
-     * Two `navigation` landmarks share the name "Navigation principale" by design, so
-     * these tests target the one they mean by test id rather than by position.
+     * Between `md` and `lg` the primary navigation is the inline list. Below `md` and at
+     * `lg` and up the links live behind the disclosure instead, which has its own
+     * traversal test above. Two `navigation` landmarks share the name "Navigation
+     * principale" by design, so these tests target the one they mean by test id rather
+     * than by position.
      */
-    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.setViewportSize({ width: 900, height: 900 });
 
     const nav = page.getByTestId("desktop-nav");
     const menuLink = nav.getByRole("link", { name: "La carte" });
