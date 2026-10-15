@@ -95,7 +95,8 @@ function trackPage(page: Page, log: ProblemLog): void {
   });
   page.on("response", (response) => {
     const url = response.url();
-    // The app ships no favicon, so a 404 for it is the expected state, not a failure.
+    // A browser may still poll /favicon.ico directly instead of using the declared
+    // `<link>`; it is not a page resource, so it stays out of the failed-request tally.
     if (url.endsWith("/favicon.ico") || response.status() < 400) {
       return;
     }
@@ -495,6 +496,64 @@ function checkMobile(page: Page, origin: string): Promise<Check> {
   }, "Mobile bar works and nothing overflows at 390 px");
 }
 
+function checkIcons(page: Page, origin: string): Promise<Check> {
+  return run(async () => {
+    const response = await gotoOrigin(page, origin, "/");
+    if (response === null) {
+      return ["/ did not load"];
+    }
+
+    const links = await page.evaluate(() =>
+      Array.from(
+        document.querySelectorAll<HTMLLinkElement>('link[rel="icon"], link[rel="apple-touch-icon"]'),
+      ).map((link) => ({
+        rel: link.getAttribute("rel") ?? "",
+        href: link.getAttribute("href") ?? "",
+        sizes: link.getAttribute("sizes") ?? "",
+      })),
+    );
+
+    const failures: string[] = [];
+
+    // The generic SVG fish must be gone; the identity is now the restaurant logo.
+    if (links.some((link) => link.href.includes("icon.svg"))) {
+      failures.push("un ancien icône générique (icon.svg) est encore déclaré");
+    }
+
+    if (!links.some((link) => link.href.includes(".png"))) {
+      failures.push('aucun <link rel="icon"> PNG sur l\'accueil');
+    }
+
+    const apple = links.find((link) => link.rel === "apple-touch-icon");
+    if (apple === undefined) {
+      failures.push('aucun <link rel="apple-touch-icon"> sur l\'accueil');
+    } else if (!apple.sizes.includes("180")) {
+      failures.push(`apple-touch-icon annoncé « ${apple.sizes} » au lieu de 180x180`);
+    }
+
+    // Every declared icon must resolve to an image, plus the conventional /favicon.ico.
+    const targets = new Set(links.map((link) => new URL(link.href, origin).toString()));
+    targets.add(new URL("/favicon.ico", origin).toString());
+    for (const url of targets) {
+      const head = await fetch(url).catch(() => null);
+      if (head === null) {
+        failures.push(`icône injoignable: ${url}`);
+        continue;
+      }
+      if (head.status !== 200) {
+        failures.push(`icône ${url} → HTTP ${head.status}`);
+        continue;
+      }
+      const type = head.headers.get("content-type") ?? "";
+      if (!type.startsWith("image/")) {
+        failures.push(`icône ${url} servie en « ${type} » au lieu de image/*`);
+      }
+    }
+
+    return failures;
+  }, "Home declares the restaurant icons and each one resolves as an image");
+}
+
 async function run(runCheck: () => Promise<string[]>, name: string): Promise<Check> {
   const failures = await runCheck();
   return {
@@ -580,6 +639,7 @@ async function main(): Promise<number> {
     checks.push(await checkPreviewNoindex(page, origin));
     checks.push(await checkSignedOutAdmin(page, origin));
     checks.push(await checkImages(page, origin));
+    checks.push(await checkIcons(page, origin));
     checks.push(await checkMobile(mobilePage, origin));
     checks.push({
       name: "No console errors or failed requests",

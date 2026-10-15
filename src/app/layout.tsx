@@ -23,10 +23,9 @@ export const metadata: Metadata = {
   },
   description: SITE_DESCRIPTION,
   applicationName: "Resta Pescado",
-  icons: {
-    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
-    apple: [{ url: "/apple-icon.svg", type: "image/svg+xml" }],
-  },
+  // Icons come from the file conventions (`app/favicon.ico`, `app/icon.png`,
+  // `app/apple-icon.png`) rather than this export, so Next emits the `<link>`s itself and
+  // there is only one source of truth per icon.
   openGraph: {
     type: "website",
     locale: "fr_DZ",
