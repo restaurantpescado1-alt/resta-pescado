@@ -152,7 +152,9 @@ test.describe("no invented content", () => {
 
     await expect(page.getByText("Suggestion du chef")).toHaveCount(0);
     await expect(page.getByText("Sélection")).toHaveCount(0);
-    await expect(page.getByText(/recommand/i)).toHaveCount(0);
+    // Scoped to dish rows: the review section quotes a real Google review that contains
+    // "recommande", so an unscoped match would find that instead of a badged dish.
+    await expect(page.locator("[data-item-id]").getByText(/recommand/i)).toHaveCount(0);
   });
 
   test("the home preview is titled neutrally", async ({ page }) => {
@@ -368,6 +370,35 @@ test("delivery is explained without an invented fee, zone, or minimum", async ({
     await expect(page.getByRole("heading", { name: "Réserver une table" })).toBeVisible();
     // No booking form exists in this phase, and adding one must not be accidental.
     await expect(page.locator("form")).toHaveCount(0);
+  });
+});
+
+/**
+ * Owner-supplied content added in the trust/polish pass: the Google review snapshot and
+ * the category covers. Both are pinned because they are claims about the restaurant, not
+ * decoration.
+ */
+test.describe("owner-supplied content", () => {
+  test("the reviews section shows the owner's snapshot and links to Google", async ({ page }) => {
+    await page.goto("/");
+
+    const section = page.getByTestId("google-reviews");
+    await expect(section).toBeVisible();
+    await expect(
+      section.getByRole("heading", { name: "Ils ont partagé leur expérience" }),
+    ).toBeVisible();
+    await expect(section.getByTestId("google-rating")).toContainText("4,9/5");
+    await expect(section.getByText("Je recommande vivement ce restaurant 😋")).toBeVisible();
+    await expect(section.getByText("Rien à dire, top.")).toBeVisible();
+    await expect(section.getByTestId("google-review")).toHaveAttribute("href", /maps\.app\.goo\.gl/);
+  });
+
+  test("category tiles show the owner's covers for soups, desserts and drinks", async ({ page }) => {
+    await page.goto("/");
+
+    for (const slug of ["soupes", "desserts", "boissons"] as const) {
+      await expect(page.locator(`img[src="/images/categories/${slug}.webp"]`)).toHaveCount(1);
+    }
   });
 });
 

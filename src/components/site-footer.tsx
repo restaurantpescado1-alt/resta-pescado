@@ -1,3 +1,4 @@
+import { SafeImage } from "@/components/safe-image";
 import { telHref, type PublicSettings } from "@/lib/public-site";
 
 /**
@@ -17,9 +18,25 @@ export function SiteFooter({ settings }: { settings: PublicSettings }) {
     <footer className="mt-auto bg-ocean text-on-ocean">
       <div className="mx-auto max-w-6xl px-4 py-8">
         <div className="grid gap-6 sm:grid-cols-3">
-          <div>
-            <p className="text-lg font-bold">Resta Pescado</p>
-            <p className="mt-1 text-sm text-on-ocean-soft">Poissons et fruits de mer.</p>
+          <div className="flex items-center gap-3">
+            {/*
+              The owner's logo. It was delivered as an opaque square with no transparent
+              background, so it is shown as a contained badge here rather than faked into
+              the header; the header keeps the text wordmark.
+            */}
+            <SafeImage
+              src="/images/brand/pescado-logo.webp"
+              alt="Logo Resta Pescado."
+              width={64}
+              height={64}
+              loading="lazy"
+              className="h-16 w-16 shrink-0 rounded-xl border border-on-ocean/20 object-contain"
+              fallbackClassName="h-16 w-16 shrink-0 rounded-xl border border-on-ocean/20 bg-white/10 text-on-ocean"
+            />
+            <div>
+              <p className="text-lg font-bold">Resta Pescado</p>
+              <p className="mt-1 text-sm text-on-ocean-soft">Poissons et fruits de mer.</p>
+            </div>
           </div>
 
           <div>
@@ -70,8 +87,10 @@ export function SiteFooter({ settings }: { settings: PublicSettings }) {
         </div>
 
         {/*
-          Social and review links, rendered only when the owner has saved them. No guessed
-          handles: an unconfirmed profile URL would send a visitor to a stranger's page.
+          Social and review links. The Google destination is owner-confirmed and always
+          present; Facebook and Instagram render only once the owner has saved a real
+          handle, because an unconfirmed profile URL would send a visitor to a stranger's
+          page.
         */}
         {settings.facebookUrl || settings.instagramUrl || settings.googleReviewUrl ? (
           <ul className="mt-6 flex flex-wrap gap-x-5 gap-y-2 border-t border-on-ocean/20 pt-4 text-sm font-semibold">

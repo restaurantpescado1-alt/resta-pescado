@@ -5,6 +5,7 @@ import { MobileActions } from "@/components/mobile-actions";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { resolveDeploymentMode } from "@/lib/auth-ip";
+import { GOOGLE_REVIEW_DESTINATION } from "@/lib/google-reviews";
 import { loadPublicSettings, type PublicSettings } from "@/lib/public-site";
 import { robotsMetadata } from "@/lib/search-indexing";
 import { SITE_ORIGIN } from "@/lib/site-origin";
@@ -72,7 +73,9 @@ export const dynamic = "force-dynamic";
  *
  * Everything else is null. That is deliberate: a fallback is for a fact that cannot
  * change without a code deploy, not a place to park values nobody has confirmed. The
- * address in particular stays null here, because it has never been confirmed.
+ * address in particular stays null here, because it has never been confirmed. The
+ * Google review destination is the one exception: it is a code constant the owner
+ * supplied, so it is safe to use whether or not D1 answers.
  */
 const FALLBACK_SETTINGS: PublicSettings = {
   phoneFr: "0540559967",
@@ -88,7 +91,7 @@ const FALLBACK_SETTINGS: PublicSettings = {
   deliveryMinimumOrderTextFr: null,
   deliveryHoursFr: null,
   pickupTextFr: null,
-  googleReviewUrl: null,
+  googleReviewUrl: GOOGLE_REVIEW_DESTINATION,
   facebookUrl: null,
   instagramUrl: null,
 };

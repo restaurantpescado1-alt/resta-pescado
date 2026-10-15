@@ -1,6 +1,7 @@
 import { getDb } from "@/db";
 import { getSiteSettings } from "@/db/repositories/menu";
 import type { MenuItemRow, SiteSettingsRow } from "@/db/schema";
+import { GOOGLE_REVIEW_DESTINATION } from "@/lib/google-reviews";
 
 /**
  * Shared reads for the public pages.
@@ -33,8 +34,16 @@ export interface PublicSettings {
   deliveryMinimumOrderTextFr: string | null;
   deliveryHoursFr: string | null;
   pickupTextFr: string | null;
+  /**
+   * The Google destination, confirmed by the owner.
+   *
+   * Never null: the owner supplied one share link, so it is the site-wide default and
+   * a dashboard value (if the owner later saves a different one) overrides it. Keeping
+   * the default here means the header-less components all resolve the same URL instead
+   * of each carrying its own copy.
+   */
+  googleReviewUrl: string;
   /** Confirmed public links. Null means the UI renders nothing rather than a guess. */
-  googleReviewUrl: string | null;
   facebookUrl: string | null;
   instagramUrl: string | null;
 }
@@ -58,7 +67,7 @@ function toPublicSettings(row: SiteSettingsRow | null): PublicSettings {
     deliveryMinimumOrderTextFr: row?.deliveryMinimumOrderTextFr ?? null,
     deliveryHoursFr: row?.deliveryHoursFr ?? null,
     pickupTextFr: row?.pickupTextFr ?? null,
-    googleReviewUrl: row?.googleReviewUrl ?? null,
+    googleReviewUrl: row?.googleReviewUrl ?? GOOGLE_REVIEW_DESTINATION,
     facebookUrl: row?.facebookUrl ?? null,
     instagramUrl: row?.instagramUrl ?? null,
   };

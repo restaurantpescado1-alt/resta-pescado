@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { CategoryIcon } from "@/components/category-icon";
 import { DishCard } from "@/components/dish";
+import { GoogleReviews } from "@/components/google-reviews";
 import { HeroVideo } from "@/components/hero-video";
 import { Reveal } from "@/components/reveal";
 import { SafeImage } from "@/components/safe-image";
@@ -10,12 +11,14 @@ import { ServiceUnavailable } from "@/components/service-unavailable";
 import { getDb } from "@/db";
 import { getPublicMenu, getSiteSettings } from "@/db/repositories/menu";
 import type { MenuCategoryRow, MenuItemRow, SiteSettingsRow } from "@/db/schema";
+import { getCategoryCover } from "@/lib/category-images";
 import {
   FISH_REFERENCE_IMAGES,
   FISH_REFERENCE_EXPLANATION,
   listFishReferenceImages,
 } from "@/lib/fish-images";
 import { bundledGalleryUrl, getBundledGalleryImage } from "@/lib/gallery-images";
+import { GOOGLE_REVIEW_DESTINATION } from "@/lib/google-reviews";
 import { resolveHeroMedia } from "@/lib/hero-media";
 import { selectHomePreview, telHref } from "@/lib/public-site";
 import { SITE_ORIGIN } from "@/lib/site-origin";
@@ -33,11 +36,13 @@ const PREVIEW_LIMIT = 4;
 /**
  * Category tiles for "Nos catégories".
  *
- * A photograph is used only where the bundled set actually shows that category. The other
- * categories fall back to a line-art icon drawn for that category (see `CategoryIcon`)
- * rather than borrowing a picture of something else — a plate of fish labelled "Desserts"
- * would be a lie the visitor can see, and one shared fish icon made every fallback tile
- * look identical.
+ * A photograph is used only where the bundled set actually shows that category. Two
+ * sources supply the pictures: the curated gallery photographs for the categories they
+ * cover (`CATEGORY_IMAGE_SLUGS` below), and the owner-supplied category covers in
+ * `src/lib/category-images.ts` for the rest. Any category with neither falls back to a
+ * line-art icon drawn for that category (see `CategoryIcon`) rather than borrowing a
+ * picture of something else — a plate of fish labelled "Desserts" would be a lie the
+ * visitor can see, and one shared fish icon made every fallback tile look identical.
  */
 const CATEGORY_IMAGE_SLUGS: Record<string, string> = {
   entrees: "starters-and-salads",
@@ -193,8 +198,24 @@ export default async function HomePage() {
 
           <ul className="-mx-4 mt-6 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2 md:mx-0 md:grid md:grid-cols-5 md:overflow-visible md:px-0">
             {categories.map((category) => {
-              const imageSlug = CATEGORY_IMAGE_SLUGS[category.slug];
-              const image = imageSlug ? getBundledGalleryImage(imageSlug) : undefined;
+              const gallerySlug = CATEGORY_IMAGE_SLUGS[category.slug];
+              const galleryImage = gallerySlug ? getBundledGalleryImage(gallerySlug) : undefined;
+              const cover = galleryImage ? undefined : getCategoryCover(category.slug);
+              const image = galleryImage
+                ? {
+                    src: bundledGalleryUrl(galleryImage.webpFile),
+                    altFr: galleryImage.altFr,
+                    width: galleryImage.width,
+                    height: galleryImage.height,
+                  }
+                : cover
+                  ? {
+                      src: cover.src,
+                      altFr: cover.altFr,
+                      width: cover.width,
+                      height: cover.height,
+                    }
+                  : undefined;
               return (
                 <li key={category.id} className="w-60 shrink-0 snap-start md:w-auto">
                   <Link
@@ -203,7 +224,7 @@ export default async function HomePage() {
                   >
                     {image ? (
                       <SafeImage
-                        src={bundledGalleryUrl(image.webpFile)}
+                        src={image.src}
                         alt={image.altFr}
                         width={image.width}
                         height={image.height}
@@ -375,33 +396,12 @@ export default async function HomePage() {
       </section>
 
       {/*
-        Trust / review section. Navy, and the button appears only when the owner has saved a
-        real Google review link: a `#` or a substituted map link would be a dead end dressed
-        up as an invitation.
+        Trust / review section. Renders the owner's Google snapshot (rating, count, two
+        chosen excerpts) and links to the owner's fiche. See `src/lib/google-reviews.ts`
+        for why the button says "Voir notre fiche Google" rather than promising a review
+        form.
       */}
-      <section className="mt-10 rounded-2xl bg-ocean px-6 py-10 text-on-ocean sm:px-10 md:mt-16" aria-labelledby="avis-titre">
-        <Reveal>
-          <div className="mx-auto max-w-2xl text-center">
-            <h2 id="avis-titre" className="text-2xl font-bold">
-              Votre avis compte pour nous
-            </h2>
-            <p className="mt-3 text-on-ocean-soft">
-              Vous avez partagé un repas chez nous ? Racontez votre expérience sur Google.
-            </p>
-            {settings?.googleReviewUrl ? (
-              <a
-                href={settings.googleReviewUrl}
-                target="_blank"
-                rel="noreferrer noopener"
-                className="mt-5 inline-block rounded-full bg-accent px-6 py-3 text-sm font-bold text-ink transition-transform hover:scale-[1.02]"
-                data-testid="google-review"
-              >
-                Laisser un avis sur Google
-              </a>
-            ) : null}
-          </div>
-        </Reveal>
-      </section>
+      <GoogleReviews href={settings?.googleReviewUrl ?? GOOGLE_REVIEW_DESTINATION} />
 
       {/*
         Practical facts, all owner-confirmed. The address is omitted entirely because it

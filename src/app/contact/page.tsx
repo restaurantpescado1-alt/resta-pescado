@@ -2,6 +2,7 @@ import { ServiceUnavailable } from "@/components/service-unavailable";
 import { getDb } from "@/db";
 import { getSiteSettings } from "@/db/repositories/menu";
 import type { SiteSettingsRow } from "@/db/schema";
+import { GOOGLE_REVIEW_CTA_LABEL_FR, GOOGLE_REVIEW_DESTINATION } from "@/lib/google-reviews";
 import { telHref } from "@/lib/public-site";
 
 export const dynamic = "force-dynamic";
@@ -44,6 +45,8 @@ export default async function ContactPage() {
 
   const { settings } = data;
   const phone = settings?.phoneFr;
+  // Owner-confirmed destination, with the site-wide default when the dashboard row is unset.
+  const googleReviewUrl = settings?.googleReviewUrl ?? GOOGLE_REVIEW_DESTINATION;
 
   return (
     <div className="pt-8" data-testid="contact">
@@ -179,13 +182,13 @@ export default async function ContactPage() {
         Social and review links. Only the links the owner has saved appear; no guessed
         handle is ever rendered, because a wrong one points a visitor at a stranger.
       */}
-      {settings?.facebookUrl || settings?.instagramUrl || settings?.googleReviewUrl ? (
+      {settings?.facebookUrl || settings?.instagramUrl || googleReviewUrl ? (
         <section className="mt-10" aria-labelledby="reseaux-titre">
           <h2 id="reseaux-titre" className="text-xl font-bold">
             Nous suivre
           </h2>
           <ul className="mt-3 flex flex-wrap gap-3">
-            {settings.facebookUrl ? (
+            {settings?.facebookUrl ? (
               <li>
                 <a
                   href={settings.facebookUrl}
@@ -198,7 +201,7 @@ export default async function ContactPage() {
                 </a>
               </li>
             ) : null}
-            {settings.instagramUrl ? (
+            {settings?.instagramUrl ? (
               <li>
                 <a
                   href={settings.instagramUrl}
@@ -211,16 +214,16 @@ export default async function ContactPage() {
                 </a>
               </li>
             ) : null}
-            {settings.googleReviewUrl ? (
+            {googleReviewUrl ? (
               <li>
                 <a
-                  href={settings.googleReviewUrl}
+                  href={googleReviewUrl}
                   target="_blank"
                   rel="noreferrer noopener"
                   className="inline-block rounded-full bg-accent px-4 py-2 text-sm font-bold text-ink"
                   data-testid="contact-google-review"
                 >
-                  Laisser un avis sur Google
+                  {GOOGLE_REVIEW_CTA_LABEL_FR}
                 </a>
               </li>
             ) : null}

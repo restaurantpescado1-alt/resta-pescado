@@ -29,10 +29,12 @@ export function DishCard({ item }: { item: MenuItemRow }) {
 
   /*
    * Image box: one deliberate size at each breakpoint rather than a size the browser
-   * negotiates. Narrow phones get a small tile so the *name* still has room; from 400px
-   * it grows once, and desktop settles on the wider 4:3 box.
+   * negotiates. The narrowest phones get a 112px tile so the *name* still has room; it
+   * steps up to 128px from 360px, 144px from 400px, and the wider 4:3 box on desktop.
+   * Each step keeps the tile small enough that a long dish name is never squeezed.
    */
-  const imageBox = "h-24 w-32 shrink-0 min-[400px]:h-28 min-[400px]:w-36 md:h-36 md:w-48";
+  const imageBox =
+    "h-20 w-28 shrink-0 min-[360px]:h-24 min-[360px]:w-32 min-[400px]:h-28 min-[400px]:w-36 md:h-36 md:w-48";
 
   return (
     <li className="flex gap-3 border-b border-line py-4 last:border-b-0 sm:gap-4" data-item-id={item.id}>
