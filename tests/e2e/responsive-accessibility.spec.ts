@@ -291,11 +291,13 @@ test.describe("accessibility", () => {
   });
 
   /**
-   * The AI illustrations are the images where alt text does real work: a screen-reader
-   * user has no other way to learn the image is a drawing rather than a photograph.
+   * The fish illustrations on the guide pages are the images where alt text does real
+   * work: a screen-reader user has no other way to learn the image is a drawing rather
+   * than a photograph. The dish photos on `/menu` carry their own alt contract, asserted
+   * in `public-menu.spec.ts`.
    */
   test("fish illustrations describe themselves as illustrations", async ({ page }) => {
-    await page.goto("/menu");
+    await page.goto("/a-propos");
 
     const illustrations = page.locator('img[src^="/images/fish-guide/"]');
     const count = await illustrations.count();
@@ -319,6 +321,12 @@ test.describe("accessibility", () => {
     await page.goto("/a-propos");
     await expect(page.getByTestId("guide-ai-label")).toHaveCount(0);
     await expect(page.getByTestId("fish-reference-explanation")).toHaveCount(1);
+  });
+
+  test("the menu carries the dish-photo disclosure once, not a badge per dish", async ({ page }) => {
+    await page.goto("/menu");
+    await expect(page.getByTestId("dish-photo-explanation")).toHaveCount(1);
+    await expect(page.getByTestId("fish-reference-label")).toHaveCount(0);
   });
 
   test("reduced motion is honoured", async ({ page }) => {

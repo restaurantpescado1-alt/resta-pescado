@@ -27,6 +27,7 @@ const ROOT = join(process.cwd(), "public", "images");
 const GALLERY_DIR = join(ROOT, "gallery");
 const GALLERY_WEBP_DIR = join(GALLERY_DIR, "webp");
 const FISH_DIR = join(ROOT, "fish-guide");
+const MENU_DIR = join(ROOT, "menu");
 
 describe("bundled gallery manifest", () => {
   const images = listBundledGalleryImages();
@@ -186,5 +187,27 @@ describe("bundled gallery sources", () => {
      */
     expect(existsSync(join(GALLERY_DIR, "README.txt"))).toBe(false);
     expect(existsSync(join(GALLERY_DIR, "gallery-manifest.json"))).toBe(false);
+  });
+});
+
+describe("bundled menu photo directory", () => {
+  it("holds exactly 37 WebP derivatives and nothing else", () => {
+    const files = existsSync(MENU_DIR) ? readdirSync(MENU_DIR) : [];
+    const webp = files.filter((name) => name.endsWith(".webp"));
+    const other = files.filter((name) => !name.endsWith(".webp"));
+
+    expect(webp).toHaveLength(37);
+    // No PNG masters, no README, no manifest: the directory ships derivatives only.
+    expect(other).toEqual([]);
+  });
+
+  it("keeps every derivative a plausible WebP by file size", () => {
+    for (const name of readdirSync(MENU_DIR)) {
+      const size = statSync(join(MENU_DIR, name)).size;
+      // A zero-byte or truncated file would be a broken image on a public menu row.
+      expect(size, `${name} is implausibly small`).toBeGreaterThan(2_000);
+      // A master left in place would be megabytes, not the ~30-80 KB a 720px WebP is.
+      expect(size, `${name} is implausibly large`).toBeLessThan(500_000);
+    }
   });
 });

@@ -14,16 +14,16 @@ export const SEEDED_CATEGORY_NAME = "Nos Poissons";
  * A dish from the owner-approved menu that carries a fish reference illustration.
  *
  * `Dorade` rather than the old placeholder dish: the seeded menu is now the real
- * 37-item card, and this one has both a confirmed price and a generated illustration,
- * which is what the public and admin assertions need.
+ * 37-item card, and this one has both a confirmed price and a bundled illustrative
+ * photo, which is what the public and admin assertions need.
  */
 export const SEEDED_ITEM_ID = "item-dorade";
 export const SEEDED_ITEM_NAME = "Dorade";
 export const SEEDED_PRICE_DA = 1200;
 
 /**
- * A dish with neither a photograph nor an illustration, used to assert the
- * "no image" path renders honestly rather than inventing a placeholder photo.
+ * A dish with no fish species mapping, used to prove the bundled photo tier covers
+ * drinks and desserts too — not only the fish rows the old illustration tier served.
  */
 export const SEEDED_ITEM_WITHOUT_IMAGE_ID = "item-soda";
 

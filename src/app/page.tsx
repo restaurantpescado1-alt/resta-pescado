@@ -13,6 +13,7 @@ import { getDb } from "@/db";
 import { getPublicMenu, getSiteSettings } from "@/db/repositories/menu";
 import type { MenuCategoryRow, MenuItemRow, SiteSettingsRow } from "@/db/schema";
 import { getCategoryCover } from "@/lib/category-images";
+import { MENU_PHOTO_EXPLANATION_FR } from "@/lib/dish-images";
 import {
   FISH_REFERENCE_IMAGES,
   FISH_REFERENCE_EXPLANATION,
@@ -267,6 +268,21 @@ export default async function HomePage() {
             Voir toute la carte
           </Link>
         </div>
+
+        {/*
+          Stated once for the section rather than under each dish. These pictures are
+          generated, so a visitor has to be told before they read them as plates the
+          restaurant served. The fish guide further down keeps its own sentence: those
+          are species illustrations, a different claim again.
+        */}
+        {items.length > 0 ? (
+          <p
+            className="mt-3 max-w-prose text-[13px] leading-snug text-ink/70"
+            data-testid="dish-photo-explanation"
+          >
+            {MENU_PHOTO_EXPLANATION_FR}
+          </p>
+        ) : null}
 
         {items.length > 0 ? (
           <ul className="mt-6 grid gap-x-8 md:grid-cols-2">

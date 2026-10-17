@@ -89,7 +89,7 @@ test.describe("owner image removal", () => {
     await expect(itemRow(page, REMOVAL_TEST_ITEM_ID).getByTestId("remove-image-form")).toHaveCount(0);
   });
 
-  test("removing a photograph restores the species illustration", async ({ page }) => {
+  test("removing a photograph restores the bundled illustrative photo", async ({ page }) => {
     await goToAdminMenu(page);
     await uploadPhoto(page, REMOVAL_TEST_ITEM_ID);
 
@@ -97,13 +97,13 @@ test.describe("owner image removal", () => {
     expect(uploaded).toBeTruthy();
 
     /*
-     * The UI states the consequence before the owner commits to it, because on a mapped
-     * dish the photograph is replaced by an illustration rather than by nothing, and that
-     * could otherwise read as a failed removal.
+     * The UI states the consequence before the owner commits to it, because every
+     * approved dish now has a bundled illustrative photo waiting underneath the
+     * upload, and that could otherwise read as a failed removal.
      */
     const row = itemRow(page, REMOVAL_TEST_ITEM_ID);
     await expect(row.getByTestId("remove-image-form")).toContainText(
-      "Le plat affichera son illustration de poisson",
+      "Le plat affichera la photo illustrative de la carte",
     );
 
     await acceptRemoveConfirmation(page);
@@ -120,22 +120,22 @@ test.describe("owner image removal", () => {
     /*
      * The fallback is asserted on the public menu rather than in the dashboard. What the
      * owner was promised when they confirmed is what a visitor sees, and the editor does
-     * not render reference illustrations at all.
+     * not render bundled photos at all.
      */
     await page.goto("/menu");
     const publicRow = itemRow(page, REMOVAL_TEST_ITEM_ID);
     const image = publicRow.locator("img").first();
     await expect(image).toBeVisible();
-    await expect(image).toHaveAttribute("src", /\/images\/fish-guide\/merlan\.webp$/);
-    // The species illustration returns, described as such by its alt text.
-    await expect(image).toHaveAttribute("alt", /Illustration de référence/i);
+    await expect(image).toHaveAttribute("src", /\/images\/menu\/merlan\.webp$/);
+    // The bundled photo returns, described as such by its alt text.
+    await expect(image).toHaveAttribute("alt", /photo illustrative générée par IA/i);
 
     // And the object really is gone from the media store, not merely unreferenced.
     const media = await page.request.get(uploaded!);
     expect(media.status()).toBe(404);
   });
 
-  test("removing a photograph leaves a dish with no species as a text row", async ({ page }) => {
+  test("removing a photograph leaves a drink showing its bundled photo, not text", async ({ page }) => {
     await goToAdminMenu(page);
     await uploadPhoto(page, REMOVAL_TEST_ITEM_WITHOUT_FISH_ID);
 
@@ -143,7 +143,9 @@ test.describe("owner image removal", () => {
     expect(uploaded).toBeTruthy();
 
     const row = itemRow(page, REMOVAL_TEST_ITEM_WITHOUT_FISH_ID);
-    await expect(row.getByTestId("remove-image-form")).toContainText("en texte seul");
+    await expect(row.getByTestId("remove-image-form")).toContainText(
+      "Le plat affichera la photo illustrative de la carte",
+    );
     await acceptRemoveConfirmation(page);
     await removeButton(row).click();
     await expect(page.getByTestId("action-message")).toHaveAttribute("class", /text-ok/);
@@ -152,13 +154,22 @@ test.describe("owner image removal", () => {
     const after = itemRow(page, REMOVAL_TEST_ITEM_WITHOUT_FISH_ID);
 
     /*
-     * No photograph, no illustration, and no placeholder: a drink is text. A dashed
-     * "Sans image" tile here would be nineteen identical grey squares on the menu.
+     * A drink has no fish species, but it does have a bundled photo, so the row is
+     * never text-only. The old assertion — that a drink falls back to a plain text
+     * row — no longer holds once every approved dish has a bundled photo.
      */
     await expect(after.locator("img")).toHaveCount(0);
-    // No species, no photograph, and no badge either: the row is plainly text.
+    // No per-card badge either: the row is plainly the name and the price.
     expect(await after.innerText()).not.toContain("Illustration IA");
     expect(await after.innerText()).not.toContain("Sans image");
+
+    // On the public menu the bundled photo is back.
+    await page.goto("/menu");
+    const publicRow = itemRow(page, REMOVAL_TEST_ITEM_WITHOUT_FISH_ID);
+    await expect(publicRow.locator("img").first()).toHaveAttribute(
+      "src",
+      /\/images\/menu\/jus\.webp$/,
+    );
 
     const media = await page.request.get(uploaded!);
     expect(media.status()).toBe(404);

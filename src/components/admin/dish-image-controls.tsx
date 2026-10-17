@@ -10,6 +10,7 @@ import {
 } from "@/app/admin/actions";
 import type { MenuItemRow } from "@/db/schema";
 import type { ActionResult } from "@/lib/action-result";
+import { getBundledDishPhoto } from "@/lib/dish-images";
 import { mediaUrl } from "@/lib/format";
 
 /**
@@ -187,13 +188,15 @@ export function DishImageControls({
             <p className="text-sm text-ink/75">
               {/*
                 Stated before the button, not after a failure: what the dish will show
-                afterwards is the thing the owner needs to decide, and on a dish whose species is
-                mapped it means the illustration comes back, which could otherwise look like the
-                removal failed.
+                afterwards is the thing the owner needs to decide. Every approved dish now
+                has a bundled illustrative photo, so clearing an upload reveals that photo
+                rather than nothing — which would otherwise look like the removal failed.
               */}
-              {item.fishReferenceSlug
-                ? "Le plat affichera son illustration de poisson, et non une photo de plat."
-                : "Le plat s'affichera sans image, en texte seul."}
+              {getBundledDishPhoto(item.id)
+                ? "Le plat affichera la photo illustrative de la carte, et non votre photo."
+                : item.fishReferenceSlug
+                  ? "Le plat affichera son illustration de poisson, et non une photo de plat."
+                  : "Le plat s'affichera sans image, en texte seul."}
             </p>
             <button
               type="submit"

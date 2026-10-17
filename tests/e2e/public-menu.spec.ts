@@ -213,10 +213,16 @@ test.describe("no invented content", () => {
 });
 
 /**
- * Fish reference illustrations.
+ * Bundled illustrative dish photos.
+ *
+ * Every row on `/menu` now shows a bundled illustrative photo from
+ * `public/images/menu/`, rather than the old mix of fish illustrations and
+ * nothing. The owner can still override any single dish from the dashboard,
+ * so the specs here are written against the seeded state (no uploads) and
+ * assert the bundled tier itself.
  */
-test.describe("fish reference illustrations", () => {
-test("a dish with a species illustration shows the image and no per-card badge", async ({ page }) => {
+test.describe("bundled dish photos", () => {
+  test("a dish with a bundled photo shows the image and no per-card badge", async ({ page }) => {
     await page.goto("/menu");
 
     const row = itemRow(page, SEEDED_ITEM_ID);
@@ -226,60 +232,85 @@ test("a dish with a species illustration shows the image and no per-card badge",
     await expect(row.getByText("Illustration IA")).toHaveCount(0);
   });
 
-  test("the illustration is served from public/ and is a real WebP", async ({ page, request }) => {
+  test("the photo is served from public/images/menu/ and is a real WebP", async ({ page, request }) => {
     await page.goto("/menu");
 
     const src = await itemRow(page, SEEDED_ITEM_ID).locator("img").getAttribute("src");
-    expect(src).toMatch(/^\/images\/fish-guide\/dorade\.webp$/);
+    expect(src).toMatch(/^\/images\/menu\/dorade\.webp$/);
 
     const response = await request.get(src!);
     expect(response.status()).toBe(200);
     expect(response.headers()["content-type"]).toBe("image/webp");
   });
 
-/**
-   * No illustration on the menu carries a per-card badge.
-   *
-   * This counts illustrations by their source path rather than counting rows that
-   * happen to hold an `<img>`. The two are not the same once the owner uploads a real
-   * photograph: an uploaded photo replaces the illustration on that dish, so the row
-   * still has an image but no species reference. Asserting on row-with-img count would
-   * make this fail depending on which other spec ran first.
-   */
-  test("no illustration on the menu carries a per-card badge", async ({ page }) => {
+  test("every one of the 37 dishes carries a photo, and none carries a per-card badge", async ({ page }) => {
     await page.goto("/menu");
 
-    const illustration = page.locator('img[src*="/images/fish-guide/"]');
-    const count = await illustration.count();
-    expect(count).toBeGreaterThan(0);
+    /*
+     * Counted per row rather than by source path. An owner photograph replaces the
+     * bundled photo on that dish, so a count of `img[src*="/images/menu/"]` would be
+     * 36 rather than 37 whenever an upload spec has run first and not restored the
+     * seeded state. What has to hold either way is that all thirty-seven rows show
+     * exactly one picture, and that the picture is a bundled one or the owner's.
+     */
+    const rows = page.locator("[data-item-id]");
+    await expect(rows).toHaveCount(37);
 
-    for (const image of await illustration.all()) {
-      // Nearest ancestor row, not `has:` on the src: three sardine dishes share one
-      // image file, so matching by src alone would return all three rows at once.
-      const row = image.locator("xpath=ancestor::*[@data-item-id][1]");
-      await expect(row.getByTestId("fish-reference-label")).toHaveCount(0);
+    let bundled = 0;
+    let ownerPhoto = 0;
+    for (const row of await rows.all()) {
+      await expect(row.locator("img")).toHaveCount(1);
+      const src = (await row.locator("img").first().getAttribute("src")) ?? "";
+      if (src.startsWith("/images/menu/")) {
+        bundled += 1;
+        await expect(row.getByTestId("fish-reference-label")).toHaveCount(0);
+        await expect(row.getByText("Illustration IA")).toHaveCount(0);
+      } else if (src.startsWith("/api/media/")) {
+        ownerPhoto += 1;
+      }
     }
 
+    // Bundled photos plus owner uploads account for every row: nothing falls through
+    // to the fish-illustration tier or to a text-only row.
+    expect(bundled + ownerPhoto).toBe(37);
+
+    // No fish illustration is used anywhere on the menu now that the photos cover every dish.
+    await expect(page.locator('img[src*="/images/fish-guide/"]')).toHaveCount(0);
+
     // The disclosure exists, once, above the whole page — not under each dish.
-    await expect(page.getByTestId("fish-reference-explanation")).toHaveCount(1);
+    await expect(page.getByTestId("dish-photo-explanation")).toHaveCount(1);
+    await expect(page.getByTestId("fish-reference-explanation")).toHaveCount(0);
   });
 
-test("a dish with no species shows the honest no-image state", async ({ page }) => {
-      await page.goto("/menu");
+  test("a drink with no fish species still gets its bundled photo", async ({ page }) => {
+    await page.goto("/menu");
 
-      const row = itemRow(page, SEEDED_ITEM_WITHOUT_IMAGE_ID);
-      await expect(row.locator("img")).toHaveCount(0);
-    });
+    const row = itemRow(page, SEEDED_ITEM_WITHOUT_IMAGE_ID);
+    await expect(row.locator("img")).toHaveCount(1);
+    await expect(row.locator("img")).toHaveAttribute("src", /\/images\/menu\/soda\.webp$/);
+  });
 
-  test("the mixed platter is shown without an illustration", async ({ page }) => {
+  test("the mixed platter is shown with its bundled photo", async ({ page }) => {
     await page.goto("/menu");
 
     const plat = page.locator("[data-item-id]", { hasText: "Plat Varié de Poissons" });
     await expect(plat).toHaveCount(1);
-    await expect(plat.locator("img")).toHaveCount(0);
+    await expect(plat.locator("img")).toHaveCount(1);
+    await expect(plat.locator("img")).toHaveAttribute(
+      "src",
+      /\/images\/menu\/plat-varie-de-poissons\.webp$/,
+    );
   });
 
-test("the guide lists all 11 species with no per-card badge", async ({ page }) => {
+  test("the photo alt text names the dish and says it is AI-generated", async ({ page }) => {
+    await page.goto("/menu");
+
+    const alt = await itemRow(page, SEEDED_ITEM_ID).locator("img").getAttribute("alt");
+    expect(alt).toContain("Dorade");
+    expect(alt?.toLowerCase()).toContain("photo illustrative générée par ia");
+  });
+
+  test("the guide lists all 11 species with no per-card badge", async ({ page }) => {
     await page.goto("/a-propos#guide-poissons");
 
     await expect(page.getByTestId("about")).toBeVisible();
@@ -287,29 +318,20 @@ test("the guide lists all 11 species with no per-card badge", async ({ page }) =
     await expect(page.getByTestId("guide-ai-label")).toHaveCount(0);
   });
 
-test("the guide never claims an image shows the cooked dish", async ({ page }) => {
+  test("the guide never claims an image shows the cooked dish", async ({ page }) => {
     await page.goto("/a-propos");
 
-    /*
-     * Asserted against the shared constant through the element that renders it, rather
-     * than as a fragment of page text. The previous assertion looked for "le poisson, pas
-     * le plat", a phrase the disclosure no longer contains, so it was testing wording that
-     * had already been replaced instead of the guarantee itself.
-     */
     await expect(page.getByTestId("fish-reference-explanation")).toHaveText(FISH_EXPLANATION);
 
     const text = (await page.locator("body").innerText()).toLowerCase();
     expect(text).not.toContain("photo du plat");
-    // The per-card badge is gone, renamed, and not hidden in a data attribute.
     expect(text).not.toContain("illustration ia");
   });
 
-  test("each relevant page carries the one fish-image sentence, once", async ({ page }) => {
-    for (const route of ["/", "/menu", "/a-propos"] as const) {
-      await page.goto(route);
-      await expect(page.getByTestId("fish-reference-explanation")).toHaveCount(1);
-      await expect(page.getByTestId("fish-reference-explanation")).toHaveText(FISH_EXPLANATION);
-    }
+  test("the home page fish guide keeps its own sentence, once", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByTestId("fish-reference-explanation")).toHaveCount(1);
+    await expect(page.getByTestId("fish-reference-explanation")).toHaveText(FISH_EXPLANATION);
   });
 });
 

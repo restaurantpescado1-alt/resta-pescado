@@ -1,4 +1,5 @@
 import type { MenuItemRow } from "@/db/schema";
+import { getBundledDishPhoto } from "@/lib/dish-images";
 import { getFishReferenceImage } from "@/lib/fish-images";
 import { formatPrice, mediaUrl } from "@/lib/format";
 import { SafeImage } from "@/components/safe-image";
@@ -6,44 +7,54 @@ import { SafeImage } from "@/components/safe-image";
 /**
  * One dish on the menu.
  *
- * Two kinds of image, and the difference matters:
+ * Three kinds of image, in the order they win, and the difference matters:
  *
- * - A **photograph** of the cooked dish, served through the media route via
- *   `item.imageKey`. When one exists
- *   it always wins, because it is the only thing that shows what you are served.
- * - An **AI-generated reference illustration** of the fish species, via
- *   `item.fishReferenceSlug`, from `public/`. It answers "which fish is this" and can
- *   never stand in for a photo of the plate; the caller renders the one page-level
- *   sentence (`FISH_REFERENCE_EXPLANATION`) that discloses these images, and the
- *   illustration is drawn `contain` on the warm shell colour so the whole fish
- *   shows rather than being cropped to a square.
+ * - A **photograph** the owner uploaded from the dashboard, served through the media
+ *   route via `item.imageKey`. It always wins, because it is the only picture a person
+ *   chose rather than a picture generated for the site.
+ * - A **bundled illustrative photo** of the dish, via `getBundledDishPhoto(item.id)`
+ *   from `public/`. This is what makes every one of the 37 rows look the same. It is
+ *   generated, not documentary, and the page carries the one sentence that says so.
+ * - A **fish reference illustration** of the species, via `item.fishReferenceSlug`,
+ *   from `public/`. It answers "which fish is this" and can never stand in for a
+ *   picture of a plate, so it is now the last resort rather than the default.
  *
- * A dish with neither gets no image box at all. An earlier version rendered a dashed
- * "Sans image" tile, which on a menu with nineteen dishes without a photograph meant
- * nineteen identical grey squares carrying no information. The row is simply a text row,
- * which is what it is.
+ * A dish with none of the three gets no image box at all. An earlier version rendered
+ * a dashed "Sans image" tile, which on a menu with nineteen dishes without a picture
+ * meant nineteen identical grey squares carrying no information. The row is simply a
+ * text row, which is what it is.
+ *
+ * Because both bundled tiers live in `public/` and are keyed by a stable id rather
+ * than stored in the database, an upload from the dashboard overrides them without a
+ * deployment, and clearing that upload drops the dish back down the list.
  */
 export function DishCard({ item }: { item: MenuItemRow }) {
-  const fish = item.fishReferenceSlug ? getFishReferenceImage(item.fishReferenceSlug) : undefined;
-  const photo = item.imageKey ? mediaUrl(item.imageKey) : null;
+  const ownerPhoto = item.imageKey ? mediaUrl(item.imageKey) : null;
+  const bundled = getBundledDishPhoto(item.id);
+  const fish =
+    !ownerPhoto && !bundled && item.fishReferenceSlug
+      ? getFishReferenceImage(item.fishReferenceSlug)
+      : undefined;
 
   /*
-   * Image box: one deliberate size at each breakpoint rather than a size the browser
-   * negotiates. The narrowest phones get a 112px tile so the *name* still has room; it
-   * steps up to 128px from 360px, 144px from 400px, and the wider 4:3 box on desktop.
-   * Each step keeps the tile small enough that a long dish name is never squeezed.
+   * Image box: one deliberate 4:3 size at each breakpoint rather than a size the
+   * browser negotiates. The narrowest phones get a 112px tile so the *name* still has
+   * room; it steps up to 128px from 360px, 144px from 400px, and the wider tile on
+   * desktop. Every step is exactly 4:3, matching the bundled photos, so `object-cover`
+   * crops the same sliver on all 37 rows instead of trimming more from one breakpoint
+   * than another.
    */
   const imageBox =
-    "h-20 w-28 shrink-0 min-[360px]:h-24 min-[360px]:w-32 min-[400px]:h-28 min-[400px]:w-36 md:h-36 md:w-48";
+    "h-[5.25rem] w-28 shrink-0 min-[360px]:h-24 min-[360px]:w-32 min-[400px]:h-[6.75rem] min-[400px]:w-36 md:h-36 md:w-48";
 
   return (
     <li className="flex gap-3 border-b border-line py-4 last:border-b-0 sm:gap-4" data-item-id={item.id}>
-      {photo ? (
+      {ownerPhoto || bundled ? (
         <SafeImage
-          src={photo}
-          alt={item.nameFr}
-          width={192}
-          height={144}
+          src={ownerPhoto ?? bundled!.src}
+          alt={ownerPhoto ? item.nameFr : bundled!.altFr}
+          width={ownerPhoto ? 192 : bundled!.width}
+          height={ownerPhoto ? 144 : bundled!.height}
           loading="lazy"
           className={`${imageBox} rounded-lg border border-line object-cover`}
           fallbackClassName={`${imageBox} text-[0.7rem]`}

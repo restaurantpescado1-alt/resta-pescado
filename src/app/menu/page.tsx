@@ -5,7 +5,7 @@ import { ServiceUnavailable } from "@/components/service-unavailable";
 import { getDb } from "@/db";
 import { getPublicMenu, getSiteSettings } from "@/db/repositories/menu";
 import type { MenuCategoryRow, MenuItemRow, SiteSettingsRow } from "@/db/schema";
-import { FISH_REFERENCE_EXPLANATION } from "@/lib/fish-images";
+import { MENU_PHOTO_EXPLANATION_FR } from "@/lib/dish-images";
 import { telHref } from "@/lib/public-site";
 
 export const dynamic = "force-dynamic";
@@ -97,15 +97,16 @@ export default async function MenuPage() {
       </nav>
 
       {/*
-        Stated once for the whole page rather than under each of the fifteen illustrated
-        dishes. The illustrations are scattered across categories, so a per-category note
-        would repeat itself several times over.
+        Stated once for the whole page rather than under each of the thirty-seven dishes.
+        Every row now carries a generated picture, so a per-dish badge would repeat itself
+        thirty-seven times and drown the menu. The fish guide keeps its own sentence on the
+        pages that teach species; these are pictures of dishes, which is a different claim.
       */}
       <p
         className="mt-5 max-w-prose text-[13px] leading-snug text-ink/70"
-        data-testid="fish-reference-explanation"
+        data-testid="dish-photo-explanation"
       >
-        {FISH_REFERENCE_EXPLANATION}
+        {MENU_PHOTO_EXPLANATION_FR}
       </p>
 
       <div className="mt-10 space-y-12">

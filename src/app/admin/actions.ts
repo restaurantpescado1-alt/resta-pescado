@@ -16,6 +16,7 @@ import type { ActionResult } from "@/lib/action-result";
 import { requireOwnerOrThrow } from "@/lib/authz";
 import { removeImageSafely } from "@/lib/image-remove";
 import { replaceImageSafely } from "@/lib/image-replace";
+import { getBundledDishPhoto } from "@/lib/dish-images";
 import { buildImageKey, validateImageUpload } from "@/lib/images";
 import type { MediaAssetRef } from "@/lib/media-provider";
 import { updateFeaturedInputSchema, updatePriceInputSchema } from "@/lib/validation";
@@ -244,11 +245,13 @@ export async function removeDishImageAction(formData: FormData): Promise<ActionR
             removedKey: previousKey,
             nameFr: existing.nameFr,
             /*
-             * Recorded so the audit explains what a visitor sees next: the dish falls
-             * back to its species illustration if it has one, and to a text-only row
-             * if it does not.
+             * Recorded so the audit explains what a visitor sees next: the bundled
+             * illustrative photo for the dish if one exists, then its species
+             * illustration if it has one, and a text-only row if it has neither.
              */
-            fallsBackTo: existing.fishReferenceSlug ?? "text-only",
+            fallsBackTo: getBundledDishPhoto(existing.id)
+              ? "bundled-dish-photo"
+              : (existing.fishReferenceSlug ?? "text-only"),
           },
         },
       }),
@@ -279,7 +282,9 @@ export async function removeDishImageAction(formData: FormData): Promise<ActionR
     ok: true,
     message: "Photo supprimée.",
     imageKey: null,
-    fallback: existing.fishReferenceSlug ?? "text-only",
+    fallback: getBundledDishPhoto(existing.id)
+      ? "bundled-dish-photo"
+      : (existing.fishReferenceSlug ?? "text-only"),
   };
 }
 
