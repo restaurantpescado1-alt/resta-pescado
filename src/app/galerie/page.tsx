@@ -1,3 +1,5 @@
+import { headers } from "next/headers";
+
 import { GalleryGrid } from "@/components/gallery-grid";
 import { ServiceUnavailable } from "@/components/service-unavailable";
 import { getDb } from "@/db";
@@ -5,13 +7,22 @@ import { getPublicGalleryImages, getSiteSettings } from "@/db/repositories/menu"
 import { listBundledGalleryState } from "@/db/repositories/owner";
 import type { GalleryImageRow, SiteSettingsRow } from "@/db/schema";
 import { mergeBundledGalleryState } from "@/lib/gallery-images";
+import { publicPageMetadata } from "@/lib/seo-metadata";
+import { resolveSiteOrigin } from "@/lib/site-origin";
+import { breadcrumbJsonLd, webPageJsonLd } from "@/lib/structured-data";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = {
-  title: "Galerie",
-  description: "Photographies du restaurant.",
-};
+const PAGE_TITLE = "Galerie";
+const PAGE_DESCRIPTION = "Photographies du restaurant.";
+
+export async function generateMetadata() {
+  return publicPageMetadata({
+    title: PAGE_TITLE,
+    description: PAGE_DESCRIPTION,
+    path: "/galerie",
+  });
+}
 
 type GalleryData =
   | {
@@ -72,6 +83,7 @@ async function loadGallery(): Promise<GalleryData> {
  */
 export default async function GalleryPage() {
   const data = await loadGallery();
+  const origin = resolveSiteOrigin((await headers()).get("host"));
 
   if (data.status === "error") {
     return <ServiceUnavailable detail={data.detail} />;
@@ -79,6 +91,23 @@ export default async function GalleryPage() {
 
   return (
     <div className="pt-8" data-testid="gallery">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: webPageJsonLd({
+            origin,
+            path: "/galerie",
+            name: PAGE_TITLE,
+            description: PAGE_DESCRIPTION,
+          }),
+        }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: breadcrumbJsonLd({ origin, path: "/galerie", name: PAGE_TITLE }),
+        }}
+      />
       <header className="pb-2">
         <h1 className="text-3xl font-bold tracking-tight">Galerie</h1>
         {/*

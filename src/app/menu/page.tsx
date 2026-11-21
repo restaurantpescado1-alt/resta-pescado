@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 
 import { DishCard } from "@/components/dish";
 import { ServiceUnavailable } from "@/components/service-unavailable";
@@ -7,8 +8,22 @@ import { getPublicMenu, getSiteSettings } from "@/db/repositories/menu";
 import type { MenuCategoryRow, MenuItemRow, SiteSettingsRow } from "@/db/schema";
 import { MENU_PHOTO_EXPLANATION_FR } from "@/lib/dish-images";
 import { telHref } from "@/lib/public-site";
+import { publicPageMetadata } from "@/lib/seo-metadata";
+import { resolveSiteOrigin } from "@/lib/site-origin";
+import { breadcrumbJsonLd, webPageJsonLd } from "@/lib/structured-data";
 
 export const dynamic = "force-dynamic";
+
+const PAGE_TITLE = "La carte";
+const PAGE_DESCRIPTION = "Les plats du restaurant et leurs prix en dinars algériens.";
+
+export async function generateMetadata() {
+  return publicPageMetadata({
+    title: PAGE_TITLE,
+    description: PAGE_DESCRIPTION,
+    path: "/menu",
+  });
+}
 
 type MenuData =
   | {
@@ -34,13 +49,9 @@ async function loadMenu(): Promise<MenuData> {
   }
 }
 
-export const metadata = {
-  title: "La carte",
-  description: "Les plats du restaurant et leurs prix en dinars algériens.",
-};
-
 export default async function MenuPage() {
   const data = await loadMenu();
+  const origin = resolveSiteOrigin((await headers()).get("host"));
 
   if (data.status === "error") {
     return <ServiceUnavailable detail={data.detail} />;
@@ -62,6 +73,23 @@ export default async function MenuPage() {
 
   return (
     <div className="pt-8" data-testid="menu">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: webPageJsonLd({
+            origin,
+            path: "/menu",
+            name: PAGE_TITLE,
+            description: PAGE_DESCRIPTION,
+          }),
+        }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: breadcrumbJsonLd({ origin, path: "/menu", name: PAGE_TITLE }),
+        }}
+      />
       <header className="pb-2">
         <h1 className="text-3xl font-bold tracking-tight">La carte</h1>
         <p className="mt-2 max-w-prose text-ink/75">

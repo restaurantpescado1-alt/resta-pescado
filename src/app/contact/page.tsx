@@ -1,16 +1,28 @@
+import { headers } from "next/headers";
+
 import { ServiceUnavailable } from "@/components/service-unavailable";
 import { getDb } from "@/db";
 import { getSiteSettings } from "@/db/repositories/menu";
 import type { SiteSettingsRow } from "@/db/schema";
 import { GOOGLE_REVIEW_CTA_LABEL_FR, GOOGLE_REVIEW_DESTINATION } from "@/lib/google-reviews";
 import { telHref } from "@/lib/public-site";
+import { publicPageMetadata } from "@/lib/seo-metadata";
+import { resolveSiteOrigin } from "@/lib/site-origin";
+import { breadcrumbJsonLd, webPageJsonLd } from "@/lib/structured-data";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = {
-  title: "Contact",
-  description: "Appeler le restaurant, commander, réserver une table, livraison et horaires.",
-};
+const PAGE_TITLE = "Contact";
+const PAGE_DESCRIPTION =
+  "Appeler le restaurant, commander, réserver une table, livraison et horaires.";
+
+export async function generateMetadata() {
+  return publicPageMetadata({
+    title: PAGE_TITLE,
+    description: PAGE_DESCRIPTION,
+    path: "/contact",
+  });
+}
 
 type ContactData =
   | { status: "ok"; settings: SiteSettingsRow | null }
@@ -44,12 +56,30 @@ export default async function ContactPage() {
   }
 
   const { settings } = data;
+  const origin = resolveSiteOrigin((await headers()).get("host"));
   const phone = settings?.phoneFr;
   // Owner-confirmed destination, with the site-wide default when the dashboard row is unset.
   const googleReviewUrl = settings?.googleReviewUrl ?? GOOGLE_REVIEW_DESTINATION;
 
   return (
     <div className="pt-8" data-testid="contact">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: webPageJsonLd({
+            origin,
+            path: "/contact",
+            name: PAGE_TITLE,
+            description: PAGE_DESCRIPTION,
+          }),
+        }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: breadcrumbJsonLd({ origin, path: "/contact", name: PAGE_TITLE }),
+        }}
+      />
       <header className="pb-2">
         <h1 className="text-3xl font-bold tracking-tight">Contact</h1>
         <p className="mt-2 max-w-prose text-ink/75">

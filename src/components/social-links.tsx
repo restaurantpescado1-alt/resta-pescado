@@ -93,9 +93,9 @@ export function SocialHighlight() {
 export function SocialNavSection({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <div className="mt-1 border-t border-white/15 px-1 pt-3">
-      <h2 className="px-3 text-xs font-bold uppercase tracking-wide text-on-ocean-soft">
+      <p className="px-3 text-xs font-bold uppercase tracking-wide text-on-ocean-soft">
         {SOCIAL_NAV_TITLE_FR}
-      </h2>
+      </p>
 
       <ul className="mt-1">
         {SOCIAL_LINKS.map((link) => (

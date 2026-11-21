@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 
 import { SafeImage } from "@/components/safe-image";
 import { ServiceUnavailable } from "@/components/service-unavailable";
@@ -9,13 +10,22 @@ import {
   FISH_REFERENCE_EXPLANATION,
   listFishReferenceImages,
 } from "@/lib/fish-images";
+import { publicPageMetadata } from "@/lib/seo-metadata";
+import { resolveSiteOrigin } from "@/lib/site-origin";
+import { breadcrumbJsonLd, webPageJsonLd } from "@/lib/structured-data";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = {
-  title: "À propos",
-  description: "Le restaurant et les poissons que nous servons.",
-};
+const PAGE_TITLE = "À propos";
+const PAGE_DESCRIPTION = "Le restaurant et les poissons que nous servons.";
+
+export async function generateMetadata() {
+  return publicPageMetadata({
+    title: PAGE_TITLE,
+    description: PAGE_DESCRIPTION,
+    path: "/a-propos",
+  });
+}
 
 type AboutData =
   | { status: "ok"; settings: SiteSettingsRow | null }
@@ -43,6 +53,7 @@ async function loadAbout(): Promise<AboutData> {
  */
 export default async function AboutPage() {
   const data = await loadAbout();
+  const origin = resolveSiteOrigin((await headers()).get("host"));
 
   if (data.status === "error") {
     return <ServiceUnavailable detail={data.detail} />;
@@ -53,6 +64,23 @@ export default async function AboutPage() {
 
   return (
     <div className="pt-8" data-testid="about">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: webPageJsonLd({
+            origin,
+            path: "/a-propos",
+            name: PAGE_TITLE,
+            description: PAGE_DESCRIPTION,
+          }),
+        }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: breadcrumbJsonLd({ origin, path: "/a-propos", name: PAGE_TITLE }),
+        }}
+      />
       <header className="pb-2">
         <h1 className="text-3xl font-bold tracking-tight">À propos</h1>
       </header>

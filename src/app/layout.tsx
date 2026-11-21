@@ -9,11 +9,9 @@ import { GOOGLE_REVIEW_DESTINATION } from "@/lib/google-reviews";
 import { loadPublicSettings, type PublicSettings } from "@/lib/public-site";
 import { robotsMetadataForHost } from "@/lib/search-indexing";
 import { resolveSiteOrigin } from "@/lib/site-origin";
+import { SITE_DESCRIPTION, websiteJsonLd } from "@/lib/structured-data";
 
 import "./globals.css";
-
-const SITE_DESCRIPTION =
-  "Poissons et fruits de mer, préparés à Alger depuis 2018. Carte, horaires et commande par téléphone.";
 
 /**
  * Metadata is generated per request because the custom domain and the preview host are
@@ -110,10 +108,15 @@ const FALLBACK_SETTINGS: PublicSettings = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const result = await loadPublicSettings();
   const settings = result.ok ? result.settings : FALLBACK_SETTINGS;
+  const host = (await headers()).get("host");
 
   return (
     <html lang="fr">
       <body className="flex min-h-screen flex-col">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: websiteJsonLd(resolveSiteOrigin(host)) }}
+        />
         {/*
           First focusable element on the page, so a keyboard user can jump past the
           navigation. Hidden until focused.

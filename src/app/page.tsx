@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 
 import { CategoryIcon } from "@/components/category-icon";
 import { DishCard } from "@/components/dish";
@@ -24,10 +25,19 @@ import { bundledGalleryUrl, getBundledGalleryImage } from "@/lib/gallery-images"
 import { GOOGLE_REVIEW_DESTINATION } from "@/lib/google-reviews";
 import { resolveHeroMedia } from "@/lib/hero-media";
 import { selectHomePreview, telHref } from "@/lib/public-site";
-import { SITE_ORIGIN } from "@/lib/site-origin";
-import { restaurantJsonLd } from "@/lib/structured-data";
+import { publicPageMetadata } from "@/lib/seo-metadata";
+import { resolveSiteOrigin } from "@/lib/site-origin";
+import { restaurantJsonLd, SITE_DESCRIPTION, webPageJsonLd } from "@/lib/structured-data";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata() {
+  return publicPageMetadata({
+    title: "Resta Pescado — Poissons et fruits de mer à Alger",
+    description: SITE_DESCRIPTION,
+    path: "/",
+  });
+}
 
 /**
  * The desktop family section's reservation action dials the confirmed number in
@@ -112,6 +122,7 @@ export default async function HomePage() {
   }
 
   const { items, categories, settings } = data;
+  const origin = resolveSiteOrigin((await headers()).get("host"));
   const guide = listFishReferenceImages().slice(0, 4);
   const heroMedia = resolveHeroMedia(process.env);
   const galleryPreview = GALLERY_PREVIEW_SLUGS.map((slug) => getBundledGalleryImage(slug)).filter(
@@ -128,9 +139,24 @@ export default async function HomePage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{
           __html: restaurantJsonLd(
-            { phoneFr: settings?.phoneFr ?? null, mapsUrl: settings?.mapsUrl ?? null },
-            SITE_ORIGIN,
+            {
+              phoneFr: settings?.phoneFr ?? null,
+              mapsUrl: settings?.mapsUrl ?? null,
+              addressFr: settings?.addressFr ?? null,
+            },
+            origin,
           ),
+        }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: webPageJsonLd({
+            origin,
+            path: "/",
+            name: "Resta Pescado",
+            description: SITE_DESCRIPTION,
+          }),
         }}
       />
 
