@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import {
   heroToggleLabel,
@@ -15,10 +15,10 @@ import {
  * Three properties are load-bearing, and each one is tested rather than assumed:
  *
  * - **The server-rendered HTML carries no `src`.** The element ships with its poster
- *   only. The source is chosen in a lazy initializer (so attaching is not an async
- *   afterthought that an accessibility mode could race), and it never appears in a
- *   worker render, so a visitor in a poster-only mode never downloads a single video
- *   byte — not "downloads and pauses", never starts.
+ *   only. The source is picked in an effect after hydration (reading `window` in the
+ *   first render would mismatch the server's markup), and it is never picked at all in
+ *   a poster-only mode, so that visitor never downloads a single video byte — not
+ *   "downloads and pauses", never starts.
  * - **`muted` is set as a property, not a JSX attribute.** React has historically not
  *   rendered the `muted` attribute during server rendering, and the video must be muted
  *   before any `play()` attempt (both for the autoplay policy and because the clip has
@@ -34,6 +34,9 @@ import {
  */
 type HeroVideoState = "poster" | "paused" | "playing" | "failed";
 
+/** The source is decided once per page load; there is nothing to subscribe to. */
+const NOOP_SUBSCRIBE = () => () => {};
+
 export function HeroVideo({
   desktopSrc,
   mobileSrc,
@@ -46,29 +49,38 @@ export function HeroVideo({
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   /**
-   * `null` when a poster-only mode applies or during any server render — SSR ships no
-   * `src` at all. The lazy initializer runs on the client once, so reduced motion and
-   * Save-Data are read for this page load and keep the hero on its poster for good,
-   * with no control to show. Below `md` the smaller encode is picked; a later resize
-   * does not re-pick the file, because both encodes are valid H.264 and re-downloading
-   * mid-session would cost more than the few bytes the wrong choice wastes.
+   * `useSyncExternalStore` is the one hook built for a browser-only value that must not
+   * change the markup React compares during hydration. The server snapshot is always
+   * `null`, so SSR and the client's first render are identical (no `src`, poster state,
+   * no toggle). React then reads the client snapshot after hydration: the policy is
+   * applied once and cached in a ref, so a later resize never re-picks the file.
+   *
+   * Reduced motion and Save-Data still keep the hero on its poster for good, with no
+   * control to show. Below `md` the smaller encode is picked; both encodes are valid
+   * H.264, so re-downloading mid-session would cost more than the few bytes the wrong
+   * choice wastes.
    */
-  const [src] = useState<string | null>(() => {
-    if (typeof window === "undefined") {
-      return null;
+  const srcCache = useRef<string | null | undefined>(undefined);
+  const getClientSnapshot = useCallback(() => {
+    if (srcCache.current !== undefined) {
+      return srcCache.current;
     }
+
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const connection = (
       navigator as Navigator & { connection?: { saveData?: boolean } }
     ).connection;
     const saveData = connection?.saveData === true;
 
-    if (!shouldAttachVideo({ reducedMotion, saveData })) {
-      return null;
-    }
+    srcCache.current = shouldAttachVideo({ reducedMotion, saveData })
+      ? window.matchMedia("(max-width: 767px)").matches
+        ? mobileSrc
+        : desktopSrc
+      : null;
 
-    return window.matchMedia("(max-width: 767px)").matches ? mobileSrc : desktopSrc;
-  });
+    return srcCache.current;
+  }, [desktopSrc, mobileSrc]);
+  const src = useSyncExternalStore(NOOP_SUBSCRIBE, getClientSnapshot, () => null);
 
   const [failed, setFailed] = useState(false);
   const [userPaused, setUserPaused] = useState(false);
