@@ -1,59 +1,71 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 
 import { InfoStrips } from "@/components/info-strips";
 import { MobileActions } from "@/components/mobile-actions";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
-import { resolveDeploymentMode } from "@/lib/auth-ip";
 import { GOOGLE_REVIEW_DESTINATION } from "@/lib/google-reviews";
 import { loadPublicSettings, type PublicSettings } from "@/lib/public-site";
-import { robotsMetadata } from "@/lib/search-indexing";
-import { SITE_ORIGIN } from "@/lib/site-origin";
+import { robotsMetadataForHost } from "@/lib/search-indexing";
+import { resolveSiteOrigin } from "@/lib/site-origin";
 
 import "./globals.css";
 
 const SITE_DESCRIPTION =
   "Poissons et fruits de mer, préparés à Alger depuis 2018. Carte, horaires et commande par téléphone.";
 
-export const metadata: Metadata = {
-  metadataBase: new URL(SITE_ORIGIN),
-  title: {
-    default: "Resta Pescado — Poissons et fruits de mer à Alger",
-    template: "%s — Resta Pescado",
-  },
-  description: SITE_DESCRIPTION,
-  applicationName: "Resta Pescado",
-  // Icons come from the file conventions (`app/favicon.ico`, `app/icon.png`,
-  // `app/apple-icon.png`) rather than this export, so Next emits the `<link>`s itself and
-  // there is only one source of truth per icon.
-  openGraph: {
-    type: "website",
-    locale: "fr_DZ",
-    siteName: "Resta Pescado",
-    title: "Resta Pescado — Poissons et fruits de mer à Alger",
+/**
+ * Metadata is generated per request because the custom domain and the preview host are
+ * served by the same Worker: only the `Host` header tells them apart. Everything below is
+ * unchanged except that the origin and the robots directive now follow that decision,
+ * and `og:url` is emitted so shares point at the official domain too.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const host = (await headers()).get("host");
+  const origin = resolveSiteOrigin(host);
+
+  return {
+    metadataBase: new URL(origin),
+    title: {
+      default: "Resta Pescado — Poissons et fruits de mer à Alger",
+      template: "%s — Resta Pescado",
+    },
     description: SITE_DESCRIPTION,
-    images: [
-      {
-        url: "/media/hero-aquarium-poster.webp",
-        width: 1920,
-        height: 1080,
-        alt: "Poissons dans un aquarium chez Resta Pescado.",
-      },
-    ],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Resta Pescado — Poissons et fruits de mer à Alger",
-    description: SITE_DESCRIPTION,
-    images: ["/media/hero-aquarium-poster.webp"],
-  },
-  // Relative to `metadataBase` and the current path, so every page canonicals to itself.
-  alternates: { canonical: "./" },
-  // Read from the environment when this module loads in the Worker, so the same build
-  // ships `index, follow` to production and `noindex, nofollow` to the preview host
-  // without a second build. Every page renders under this layout.
-  robots: robotsMetadata(resolveDeploymentMode()),
-};
+    applicationName: "Resta Pescado",
+    // Icons come from the file conventions (`app/favicon.ico`, `app/icon.png`,
+    // `app/apple-icon.png`) rather than this export, so Next emits the `<link>`s itself and
+    // there is only one source of truth per icon.
+    openGraph: {
+      type: "website",
+      locale: "fr_DZ",
+      siteName: "Resta Pescado",
+      url: "./",
+      title: "Resta Pescado — Poissons et fruits de mer à Alger",
+      description: SITE_DESCRIPTION,
+      images: [
+        {
+          url: "/media/hero-aquarium-poster.webp",
+          width: 1920,
+          height: 1080,
+          alt: "Poissons dans un aquarium chez Resta Pescado.",
+        },
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: "Resta Pescado — Poissons et fruits de mer à Alger",
+      description: SITE_DESCRIPTION,
+      images: ["/media/hero-aquarium-poster.webp"],
+    },
+    // Relative to `metadataBase` and the current path, so every page canonicals to itself
+    // and its Open Graph URL points at that same page on the official domain.
+    alternates: { canonical: "./" },
+    // Only the official hostname is indexable; every preview or local host keeps the
+    // original noindex protection.
+    robots: robotsMetadataForHost(host),
+  };
+}
 
 /**
  * The layout reads `site_settings` for the header, the footer, and the mobile action

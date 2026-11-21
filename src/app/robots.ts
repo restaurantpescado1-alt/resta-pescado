@@ -1,19 +1,22 @@
 import type { MetadataRoute } from "next";
 
-import { resolveDeploymentMode } from "@/lib/auth-ip";
-import { robotsFile } from "@/lib/search-indexing";
-
 /**
- * Evaluated per request, not once at build time.
+ * The canonical robots policy for the official site.
  *
- * `DEPLOYMENT_MODE` is a Wrangler var: it is present in the Worker runtime and
- * the same build artifact is what `deploy` and `deploy:preview` both ship. A
- * `robots.txt` cached at build time would record whatever the build machine
- * happened to have and then tell crawlers the same thing on both hosts, which
- * is exactly the failure this file exists to prevent.
+ * A `Disallow: /` must never be served from restapescado.com, so the rule is fixed here
+ * instead of being derived from `DEPLOYMENT_MODE`. It grants every standard crawler
+ * access to the public pages, adds OAI-SearchBot explicitly for ChatGPT search, and
+ * points Google at the sitemap. Per-page `noindex` metadata remains the mechanism for
+ * copies that should not be indexed.
  */
 export const dynamic = "force-dynamic";
 
 export default function robots(): MetadataRoute.Robots {
-  return robotsFile(resolveDeploymentMode());
+  return {
+    rules: [
+      { userAgent: "*", allow: "/" },
+      { userAgent: "OAI-SearchBot", allow: "/" },
+    ],
+    sitemap: "https://restapescado.com/sitemap.xml",
+  };
 }

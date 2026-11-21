@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 
 import type { DeploymentMode } from "@/lib/auth-ip";
+import { isOfficialSiteHost } from "@/lib/site-origin";
 
 /**
  * Whether a deployment may be indexed by search engines.
@@ -41,4 +42,19 @@ export function robotsFile(mode: DeploymentMode): MetadataRoute.Robots {
  */
 export function robotsMetadata(mode: DeploymentMode): { index: boolean; follow: boolean } {
   return isIndexable(mode) ? { index: true, follow: true } : { index: false, follow: false };
+}
+
+/**
+ * The request-time form used by the root layout.
+ *
+ * The custom domain can be served by the same Worker as the preview hostname, so
+ * `DEPLOYMENT_MODE` alone cannot tell them apart. The host can: only the official
+ * hostname is indexable, and every other host — including every `workers.dev`
+ * preview — stays `noindex, nofollow`. This is additive; the deployment-mode helper
+ * above is left untouched for its existing callers and tests.
+ */
+export function robotsMetadataForHost(
+  host: string | null | undefined,
+): { index: boolean; follow: boolean } {
+  return isOfficialSiteHost(host) ? { index: true, follow: true } : { index: false, follow: false };
 }

@@ -1,6 +1,9 @@
 import type { MetadataRoute } from "next";
 
-import { SITE_ORIGIN } from "@/lib/site-origin";
+/**
+ * The official public origin. The old preview Worker host must never appear here.
+ */
+const SITE_ORIGIN = "https://restapescado.com";
 
 /**
  * The public routes. Admin and API routes are deliberately absent: a sitemap lists pages
