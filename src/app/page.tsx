@@ -8,6 +8,7 @@ import { ChildChairIcon, PhoneIcon } from "@/components/icons";
 import { Reveal } from "@/components/reveal";
 import { SafeImage } from "@/components/safe-image";
 import { ServiceUnavailable } from "@/components/service-unavailable";
+import { SocialHighlight } from "@/components/social-links";
 
 import { getDb } from "@/db";
 import { getPublicMenu, getSiteSettings } from "@/db/repositories/menu";
@@ -172,6 +173,9 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* Owner-confirmed profiles, directly below the hero and above the intro copy. */}
+      <SocialHighlight />
 
       {/*
         The description, moved out of the hero overlay so it sits on the page's own

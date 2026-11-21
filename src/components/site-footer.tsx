@@ -1,4 +1,5 @@
 import { SafeImage } from "@/components/safe-image";
+import { SocialFooterItems } from "@/components/social-links";
 import { telHref, type PublicSettings } from "@/lib/public-site";
 
 /**
@@ -87,54 +88,29 @@ export function SiteFooter({ settings }: { settings: PublicSettings }) {
         </div>
 
         {/*
-          Social and review links. The Google destination is owner-confirmed and always
-          present; Facebook and Instagram render only once the owner has saved a real
-          handle, because an unconfirmed profile URL would send a visitor to a stranger's
-          page.
+          Social destinations are owner-confirmed code constants (see
+          `src/lib/social-links.ts`) and appear on every page. The Google review link stays
+          alongside them when the owner has saved one.
         */}
-        {settings.facebookUrl || settings.instagramUrl || settings.googleReviewUrl ? (
-          <ul className="mt-6 flex flex-wrap gap-x-5 gap-y-2 border-t border-on-ocean/20 pt-4 text-sm font-semibold">
-            {settings.facebookUrl ? (
-              <li>
-                <a
-                  href={settings.facebookUrl}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="min-h-11 items-center underline underline-offset-4 hover:text-on-ocean"
-                  data-testid="footer-facebook"
-                >
-                  Facebook
-                </a>
-              </li>
-            ) : null}
-            {settings.instagramUrl ? (
-              <li>
-                <a
-                  href={settings.instagramUrl}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="min-h-11 items-center underline underline-offset-4 hover:text-on-ocean"
-                  data-testid="footer-instagram"
-                >
-                  Instagram
-                </a>
-              </li>
-            ) : null}
-            {settings.googleReviewUrl ? (
-              <li>
-                <a
-                  href={settings.googleReviewUrl}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="min-h-11 items-center underline underline-offset-4 hover:text-on-ocean"
-                  data-testid="footer-google-review"
-                >
-                  Avis Google
-                </a>
-              </li>
-            ) : null}
-          </ul>
-        ) : null}
+        <ul
+          className="mt-6 flex flex-wrap gap-x-5 gap-y-2 border-t border-on-ocean/20 pt-4 text-sm font-semibold"
+          aria-label="Nos réseaux et avis"
+        >
+          <SocialFooterItems />
+          {settings.googleReviewUrl ? (
+            <li>
+              <a
+                href={settings.googleReviewUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex min-h-11 items-center underline underline-offset-4 hover:text-on-ocean focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                data-testid="footer-google-review"
+              >
+                Avis Google
+              </a>
+            </li>
+          ) : null}
+        </ul>
       </div>
     </footer>
   );
